@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -59,15 +59,11 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     setIsCapturing(false);
   }, [onCapture, stopCamera]);
 
-  // Start camera on mount
-  useState(() => {
+  // Start camera on mount and cleanup on unmount
+  useEffect(() => {
     startCamera();
-  });
-
-  // Cleanup on unmount
-  useState(() => {
     return () => stopCamera();
-  });
+  }, [startCamera, stopCamera]);
 
   return (
     <div className="fixed inset-0 z-50 bg-background">
