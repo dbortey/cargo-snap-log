@@ -53,17 +53,24 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     if (ctx) {
       ctx.drawImage(videoRef.current, 0, 0);
       const imageData = canvas.toDataURL("image/jpeg", 0.8);
-      stopCamera();
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
       onCapture(imageData);
     }
     setIsCapturing(false);
-  }, [onCapture, stopCamera]);
+  }, [onCapture, stream]);
 
   // Start camera on mount and cleanup on unmount
   useEffect(() => {
     startCamera();
-    return () => stopCamera();
-  }, [startCamera, stopCamera]);
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-background">
@@ -74,7 +81,9 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
             variant="ghost"
             size="icon"
             onClick={() => {
-              stopCamera();
+              if (stream) {
+                stream.getTracks().forEach((track) => track.stop());
+              }
               onClose();
             }}
           >
@@ -95,12 +104,12 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
           </div>
         </div>
 
-        <div className="p-6 bg-card border-t">
+        <div className="absolute bottom-8 left-0 right-0 px-6">
           <Button
             onClick={captureImage}
             disabled={isCapturing || !stream}
             size="lg"
-            className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold text-lg h-14"
+            className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold text-lg h-14 shadow-lg"
           >
             <Camera className="mr-2 h-6 w-6" />
             Capture Photo
