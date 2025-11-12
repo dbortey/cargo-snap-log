@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { CheckCircle2, X, Camera } from "lucide-react";
+import { Camera } from "lucide-react";
 import { CameraCapture } from "./CameraCapture";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -12,21 +11,35 @@ import { toast } from "sonner";
 interface ConfirmEntryProps {
   containerNumber: string;
   imageData: string;
-  onConfirm: (containerNumber: string, size: string, containerImage: string, licensePlateNumber: string) => void;
+  onConfirm: (
+    containerNumber: string,
+    size: string,
+    containerImage: string,
+    licensePlateNumber: string,
+    entryType: string
+  ) => void;
   onCancel: () => void;
 }
 
-export const ConfirmEntry = ({ containerNumber, imageData, onConfirm, onCancel }: ConfirmEntryProps) => {
-  const [editedNumber, setEditedNumber] = useState(containerNumber);
-  const [containerSize, setContainerSize] = useState<string>("");
+export const ConfirmEntry = ({
+  containerNumber: initialContainerNumber,
+  imageData,
+  onConfirm,
+  onCancel,
+}: ConfirmEntryProps) => {
+  const [containerNumber, setContainerNumber] = useState(initialContainerNumber);
+  const [size, setSize] = useState("20ft");
+  const [entryType, setEntryType] = useState("receiving");
   const [showLicensePlateCamera, setShowLicensePlateCamera] = useState(false);
+  const [licensePlateImage, setLicensePlateImage] = useState<string>("");
   const [licensePlateNumber, setLicensePlateNumber] = useState<string>("");
-  const [isProcessingLicense, setIsProcessingLicense] = useState(false);
+  const [isProcessingPlate, setIsProcessingPlate] = useState(false);
 
   const handleLicensePlateCapture = async (image: string) => {
-    setIsProcessingLicense(true);
+    setLicensePlateImage(image);
     setShowLicensePlateCamera(false);
-    
+    setIsProcessingPlate(true);
+
     try {
       const { data, error } = await supabase.functions.invoke("extract-license-plate", {
         body: { imageData: image },
@@ -46,113 +59,153 @@ export const ConfirmEntry = ({ containerNumber, imageData, onConfirm, onCancel }
       toast.error("Failed to process license plate. Please enter manually.");
       setLicensePlateNumber("");
     } finally {
-      setIsProcessingLicense(false);
+      setIsProcessingPlate(false);
     }
   };
 
-  const handleFinalConfirm = () => {
-    onConfirm(editedNumber, containerSize, imageData, licensePlateNumber);
+  const handleSubmit = () => {
+    if (!containerNumber.trim()) {
+      toast.error("Please enter a container number");
+      return;
+    }
+    onConfirm(containerNumber, size, imageData, licensePlateNumber, entryType);
   };
-
-  const isValid = editedNumber.length === 11 && containerSize !== "";
-
-  if (showLicensePlateCamera) {
-    return (
-      <CameraCapture
-        onCapture={handleLicensePlateCapture}
-        onClose={() => setShowLicensePlateCamera(false)}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background p-4">
-      <div className="max-w-2xl mx-auto space-y-6 pt-6">
-        <Card className="overflow-hidden">
-          <div className="relative aspect-video bg-muted">
-            <img
-              src={imageData}
-              alt="Captured container"
-              className="w-full h-full object-contain"
-            />
-          </div>
-        </Card>
-
-        <Card className="p-6 space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="container-number">Container Number</Label>
-            <Input
-              id="container-number"
-              value={editedNumber}
-              onChange={(e) => setEditedNumber(e.target.value.toUpperCase())}
-              placeholder="Enter container number"
-              maxLength={11}
-              className="font-mono text-lg"
-            />
-            <p className="text-sm text-muted-foreground">
-              {editedNumber.length}/11 characters
-            </p>
+      {showLicensePlateCamera ? (
+        <CameraCapture
+          onCapture={handleLicensePlateCapture}
+          onClose={() => setShowLicensePlateCamera(false)}
+        />
+      ) : (
+        <div className="max-w-2xl mx-auto space-y-6 py-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-foreground">Confirm Entry</h2>
+            <Button variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="container-size">Container Size</Label>
-            <Select value={containerSize} onValueChange={setContainerSize}>
-              <SelectTrigger id="container-size">
-                <SelectValue placeholder="Select size" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="20ft">20ft</SelectItem>
-                <SelectItem value="40ft">40ft</SelectItem>
-                <SelectItem value="40ft HC">40ft HC (High Cube)</SelectItem>
-                <SelectItem value="45ft">45ft</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Card className="overflow-hidden shadow-lg border-border">
+            <div className="aspect-video bg-muted/30 overflow-hidden">
+              <img
+                src={imageData}
+                alt="Container"
+                className="w-full h-full object-contain"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="license-plate">License Plate (Optional)</Label>
-            <Input
-              id="license-plate"
-              value={licensePlateNumber}
-              onChange={(e) => setLicensePlateNumber(e.target.value.toUpperCase())}
-              placeholder="Enter license plate number"
-              className="font-mono"
-              disabled={isProcessingLicense}
-            />
-            <div className="flex gap-2">
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">
+                  Container Number
+                </label>
+                <Input
+                  value={containerNumber}
+                  onChange={(e) => setContainerNumber(e.target.value.toUpperCase())}
+                  placeholder="e.g., ABCD1234567"
+                  className="font-mono text-lg"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">
+                  Container Size
+                </label>
+                <Select value={size} onValueChange={setSize}>
+                  <SelectTrigger className="text-lg">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="20ft">20ft Standard</SelectItem>
+                    <SelectItem value="40ft">40ft Standard</SelectItem>
+                    <SelectItem value="40ft HC">40ft High Cube</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">
+                  Entry Type
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    variant={entryType === "receiving" ? "default" : "outline"}
+                    onClick={() => setEntryType("receiving")}
+                    className="h-14 text-base"
+                  >
+                    📦 Receiving
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={entryType === "clearing" ? "default" : "outline"}
+                    onClick={() => setEntryType("clearing")}
+                    className="h-14 text-base"
+                  >
+                    🚚 Clearing
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-foreground">
+                  License Plate <span className="text-muted-foreground font-normal">(Optional)</span>
+                </label>
+                
+                {!licensePlateNumber ? (
+                  <Button
+                    onClick={() => setShowLicensePlateCamera(true)}
+                    variant="outline"
+                    className="w-full h-12"
+                    disabled={isProcessingPlate}
+                  >
+                    <Camera className="mr-2 h-5 w-5" />
+                    {isProcessingPlate ? "Processing..." : "Capture License Plate"}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={licensePlateNumber}
+                      onChange={(e) => setLicensePlateNumber(e.target.value.toUpperCase())}
+                      placeholder="Enter license plate"
+                      className="font-mono text-lg flex-1"
+                    />
+                    <Button
+                      onClick={() => {
+                        setLicensePlateNumber("");
+                        setLicensePlateImage("");
+                      }}
+                      variant="ghost"
+                      size="icon"
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                )}
+                
+                {!licensePlateNumber && (
+                  <Input
+                    value={licensePlateNumber}
+                    onChange={(e) => setLicensePlateNumber(e.target.value.toUpperCase())}
+                    placeholder="Or type license plate manually"
+                    className="font-mono"
+                  />
+                )}
+              </div>
+
               <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowLicensePlateCamera(true)}
-                disabled={isProcessingLicense}
-                className="flex-1"
+                onClick={handleSubmit}
+                className="w-full h-14 text-lg font-semibold shadow-lg"
+                size="lg"
               >
-                <Camera className="mr-2 h-4 w-4" />
-                {isProcessingLicense ? "Processing..." : "Scan License Plate"}
+                ✓ Confirm Entry
               </Button>
             </div>
-          </div>
-
-          <Button
-            onClick={handleFinalConfirm}
-            disabled={!isValid}
-            size="lg"
-            className="w-full"
-          >
-            <CheckCircle2 className="mr-2 h-5 w-5" />
-            Confirm Entry
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={onCancel}
-            className="w-full"
-          >
-            <X className="mr-2 h-4 w-4" />
-            Cancel
-          </Button>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

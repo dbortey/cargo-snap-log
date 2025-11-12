@@ -20,6 +20,7 @@ export type Database = {
           container_number: string
           container_size: string
           created_at: string
+          entry_type: string
           id: string
           license_plate_number: string | null
           user_name: string
@@ -29,6 +30,7 @@ export type Database = {
           container_number: string
           container_size: string
           created_at?: string
+          entry_type?: string
           id?: string
           license_plate_number?: string | null
           user_name?: string
@@ -38,6 +40,7 @@ export type Database = {
           container_number?: string
           container_size?: string
           created_at?: string
+          entry_type?: string
           id?: string
           license_plate_number?: string | null
           user_name?: string

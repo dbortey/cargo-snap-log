@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CameraCapture } from "@/components/CameraCapture";
 import { ConfirmEntry } from "@/components/ConfirmEntry";
-import { EntriesTable } from "@/components/EntriesTable";
+import { EntriesGrid } from "@/components/EntriesGrid";
 import { NameEntry } from "@/components/NameEntry";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -113,7 +113,8 @@ const Index = () => {
     containerNumber: string,
     size: string,
     containerImage: string,
-    licensePlateNumber: string
+    licensePlateNumber: string,
+    entryType: string
   ) => {
     try {
       const { error } = await supabase.from("container_entries").insert({
@@ -122,6 +123,7 @@ const Index = () => {
         user_name: currentUser,
         container_image: containerImage,
         license_plate_number: licensePlateNumber || null,
+        entry_type: entryType,
       });
 
       if (error) throw error;
@@ -195,19 +197,27 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-primary text-primary-foreground py-6 px-4 shadow-lg">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+      <header className="bg-gradient-to-r from-primary to-primary/90 text-primary-foreground py-6 px-4 shadow-xl border-b border-primary/20">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={containerLogo} alt="Logo" className="h-8 w-8 object-contain" />
-            <h1 className="text-2xl font-bold">Container Tracker</h1>
+            <div className="p-2 bg-primary-foreground/10 rounded-lg backdrop-blur-sm">
+              <img src={containerLogo} alt="Logo" className="h-7 w-7 object-contain" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Container Tracker</h1>
+              <p className="text-xs text-primary-foreground/80">Greater Accra Operations</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm">Welcome, {currentUser}</span>
+            <div className="text-right hidden sm:block">
+              <p className="text-xs text-primary-foreground/70">Logged in as</p>
+              <p className="text-sm font-semibold">{currentUser}</p>
+            </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleLogout}
-              className="text-primary-foreground hover:bg-primary-foreground/20"
+              className="text-primary-foreground hover:bg-primary-foreground/20 h-10 px-3"
             >
               <LogOut className="h-4 w-4" />
             </Button>
@@ -215,22 +225,27 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-4 space-y-6 pb-24">
+      <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6 pb-24">
         <div className="sticky top-4 z-10">
           <Button
             onClick={() => setShowCamera(true)}
             disabled={isProcessing}
             size="lg"
-            className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold text-lg h-16 shadow-lg"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-lg h-16 shadow-xl hover:shadow-2xl transition-all duration-200"
           >
             <PlusCircle className="mr-2 h-6 w-6" />
-            {isProcessing ? "Processing..." : "Record Entry"}
+            {isProcessing ? "Processing..." : "📸 Record New Entry"}
           </Button>
         </div>
 
         <div>
-          <h2 className="text-xl font-semibold mb-4">Recent Entries</h2>
-          <EntriesTable />
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-2xl font-bold text-foreground">Container Entries</h2>
+            <div className="text-sm text-muted-foreground">
+              Manage and track all container movements
+            </div>
+          </div>
+          <EntriesGrid />
         </div>
       </main>
     </div>
