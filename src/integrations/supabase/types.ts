@@ -16,22 +16,52 @@ export type Database = {
     Tables: {
       container_entries: {
         Row: {
+          container_image: string | null
           container_number: string
           container_size: string
           created_at: string
           id: string
+          license_plate_number: string | null
+          user_name: string
         }
         Insert: {
+          container_image?: string | null
           container_number: string
           container_size: string
           created_at?: string
           id?: string
+          license_plate_number?: string | null
+          user_name?: string
         }
         Update: {
+          container_image?: string | null
           container_number?: string
           container_size?: string
           created_at?: string
           id?: string
+          license_plate_number?: string | null
+          user_name?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          created_at: string
+          id: string
+          last_seen_at: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          name?: string
         }
         Relationships: []
       }

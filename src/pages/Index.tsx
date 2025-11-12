@@ -7,7 +7,7 @@ import { NameEntry } from "@/components/NameEntry";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { PlusCircle, Container, LogOut } from "lucide-react";
+import { PlusCircle, Container, LogOut, MapPin } from "lucide-react";
 import { compressImage } from "@/lib/imageCompression";
 import containerLogo from "@/assets/container-logo.png";
 
@@ -18,6 +18,7 @@ const Index = () => {
   const [capturedImage, setCapturedImage] = useState<string>("");
   const [extractedNumber, setExtractedNumber] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLocationValid, setIsLocationValid] = useState<boolean | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -26,7 +27,43 @@ const Index = () => {
     if (storedUser) {
       setCurrentUser(storedUser);
     }
+
+    // Check geolocation
+    checkLocation();
   }, []);
+
+  const checkLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      setIsLocationValid(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        // Greater Accra bounds (approximate)
+        const isInGreaterAccra = 
+          latitude >= 5.4 && latitude <= 6.0 &&
+          longitude >= -0.5 && longitude <= 0.3;
+
+        if (!isInGreaterAccra) {
+          toast.error("Access denied: This service is only available in Greater Accra, Ghana", {
+            duration: 5000,
+          });
+          setIsLocationValid(false);
+        } else {
+          setIsLocationValid(true);
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        toast.error("Please enable location services to use this app");
+        setIsLocationValid(false);
+      }
+    );
+  };
 
   const handleConnect = (userName: string) => {
     setCurrentUser(userName);
@@ -76,20 +113,15 @@ const Index = () => {
     containerNumber: string,
     size: string,
     containerImage: string,
-    licensePlateImage: string
+    licensePlateNumber: string
   ) => {
     try {
-      // Compress license plate image
-      const compressedLicensePlate = licensePlateImage 
-        ? await compressImage(licensePlateImage)
-        : null;
-
       const { error } = await supabase.from("container_entries").insert({
         container_number: containerNumber,
         container_size: size,
         user_name: currentUser,
         container_image: containerImage,
-        license_plate_image: compressedLicensePlate,
+        license_plate_number: licensePlateNumber || null,
       });
 
       if (error) throw error;
@@ -114,6 +146,36 @@ const Index = () => {
 
   if (!currentUser) {
     return <NameEntry onConnect={handleConnect} />;
+  }
+
+  if (isLocationValid === false) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md text-center space-y-4">
+          <div className="p-4 bg-destructive/10 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
+            <MapPin className="h-10 w-10 text-destructive" />
+          </div>
+          <h1 className="text-2xl font-bold">Location Restricted</h1>
+          <p className="text-muted-foreground">
+            This service is only available in Greater Accra, Ghana. Please ensure you are within the service area and location services are enabled.
+          </p>
+          <Button onClick={checkLocation} variant="outline">
+            Retry Location Check
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLocationValid === null) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Checking location...</p>
+        </div>
+      </div>
+    );
   }
 
   if (showCamera) {

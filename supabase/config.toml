@@ -1,1 +1,7 @@
 project_id = "ucmkfqhfirqnvmzjloqj"
+
+[functions.extract-container-number]
+verify_jwt = false
+
+[functions.extract-license-plate]
+verify_jwt = false

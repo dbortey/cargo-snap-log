@@ -6,12 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { CheckCircle2, X, Camera } from "lucide-react";
 import { CameraCapture } from "./CameraCapture";
-import { compressImage } from "@/lib/imageCompression";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ConfirmEntryProps {
   containerNumber: string;
   imageData: string;
-  onConfirm: (containerNumber: string, size: string, containerImage: string, licensePlateImage: string) => void;
+  onConfirm: (containerNumber: string, size: string, containerImage: string, licensePlateNumber: string) => void;
   onCancel: () => void;
 }
 
@@ -19,21 +20,38 @@ export const ConfirmEntry = ({ containerNumber, imageData, onConfirm, onCancel }
   const [editedNumber, setEditedNumber] = useState(containerNumber);
   const [containerSize, setContainerSize] = useState<string>("");
   const [showLicensePlateCamera, setShowLicensePlateCamera] = useState(false);
-  const [licensePlateImage, setLicensePlateImage] = useState<string>("");
-  const [step, setStep] = useState<"size" | "license">("size");
-
-  const handleSizeConfirm = () => {
-    setStep("license");
-  };
+  const [licensePlateNumber, setLicensePlateNumber] = useState<string>("");
+  const [isProcessingLicense, setIsProcessingLicense] = useState(false);
 
   const handleLicensePlateCapture = async (image: string) => {
-    const compressed = await compressImage(image);
-    setLicensePlateImage(compressed);
+    setIsProcessingLicense(true);
     setShowLicensePlateCamera(false);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-license-plate", {
+        body: { imageData: image },
+      });
+
+      if (error) throw error;
+
+      if (data.licensePlateNumber === "UNABLE_TO_READ") {
+        toast.warning("Unable to read license plate. Please enter it manually.");
+        setLicensePlateNumber("");
+      } else {
+        setLicensePlateNumber(data.licensePlateNumber);
+        toast.success("License plate extracted!");
+      }
+    } catch (error) {
+      console.error("Error processing license plate:", error);
+      toast.error("Failed to process license plate. Please enter manually.");
+      setLicensePlateNumber("");
+    } finally {
+      setIsProcessingLicense(false);
+    }
   };
 
   const handleFinalConfirm = () => {
-    onConfirm(editedNumber, containerSize, imageData, licensePlateImage);
+    onConfirm(editedNumber, containerSize, imageData, licensePlateNumber);
   };
 
   const isValid = editedNumber.length === 11 && containerSize !== "";
@@ -91,60 +109,39 @@ export const ConfirmEntry = ({ containerNumber, imageData, onConfirm, onCancel }
             </Select>
           </div>
 
-          {step === "size" && (
-            <Button
-              onClick={handleSizeConfirm}
-              disabled={!isValid}
-              size="lg"
-              className="w-full"
-            >
-              Next: Capture License Plate
-            </Button>
-          )}
-
-          {step === "license" && (
-            <div className="space-y-4">
-              {licensePlateImage ? (
-                <>
-                  <div className="space-y-2">
-                    <Label>License Plate Photo</Label>
-                    <div className="relative aspect-video rounded-lg overflow-hidden border-2 border-border">
-                      <img
-                        src={licensePlateImage}
-                        alt="License plate"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => setLicensePlateImage("")}
-                      className="flex-1"
-                    >
-                      Retake Photo
-                    </Button>
-                    <Button
-                      onClick={handleFinalConfirm}
-                      className="flex-1"
-                    >
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Confirm Entry
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <Button
-                  onClick={() => setShowLicensePlateCamera(true)}
-                  size="lg"
-                  className="w-full"
-                >
-                  <Camera className="mr-2 h-5 w-5" />
-                  Capture License Plate
-                </Button>
-              )}
+          <div className="space-y-2">
+            <Label htmlFor="license-plate">License Plate (Optional)</Label>
+            <Input
+              id="license-plate"
+              value={licensePlateNumber}
+              onChange={(e) => setLicensePlateNumber(e.target.value.toUpperCase())}
+              placeholder="Enter license plate number"
+              className="font-mono"
+              disabled={isProcessingLicense}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowLicensePlateCamera(true)}
+                disabled={isProcessingLicense}
+                className="flex-1"
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                {isProcessingLicense ? "Processing..." : "Scan License Plate"}
+              </Button>
             </div>
-          )}
+          </div>
+
+          <Button
+            onClick={handleFinalConfirm}
+            disabled={!isValid}
+            size="lg"
+            className="w-full"
+          >
+            <CheckCircle2 className="mr-2 h-5 w-5" />
+            Confirm Entry
+          </Button>
 
           <Button
             variant="outline"
