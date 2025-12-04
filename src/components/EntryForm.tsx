@@ -21,7 +21,7 @@ interface EntryFormProps {
   onCancel: () => void;
 }
 
-type CaptureTarget = "container" | "license" | null;
+type CaptureTarget = "container" | "license" | "secondContainer" | null;
 
 export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
   const [containerNumber, setContainerNumber] = useState("");
@@ -35,6 +35,7 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
   const [captureTarget, setCaptureTarget] = useState<CaptureTarget>(null);
   const [isProcessingContainer, setIsProcessingContainer] = useState(false);
   const [isProcessingPlate, setIsProcessingPlate] = useState(false);
+  const [isProcessingSecondContainer, setIsProcessingSecondContainer] = useState(false);
 
   const handleContainerCapture = async (imageData: string) => {
     setCaptureTarget(null);
@@ -61,6 +62,31 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
       toast.error("Failed to process image. Please enter manually.");
     } finally {
       setIsProcessingContainer(false);
+    }
+  };
+
+  const handleSecondContainerCapture = async (imageData: string) => {
+    setCaptureTarget(null);
+    setIsProcessingSecondContainer(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-container-number", {
+        body: { imageData },
+      });
+
+      if (error) throw error;
+
+      if (data.containerNumber === "UNABLE_TO_READ") {
+        toast.warning("Unable to read second container number. Please enter it manually.");
+      } else {
+        setSecondContainerNumber(data.containerNumber);
+        toast.success("Second container number extracted!");
+      }
+    } catch (error) {
+      console.error("Error processing second container:", error);
+      toast.error("Failed to process image. Please enter manually.");
+    } finally {
+      setIsProcessingSecondContainer(false);
     }
   };
 
@@ -108,10 +134,20 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
     });
   };
 
+  const handleCapture = (imageData: string) => {
+    if (captureTarget === "container") {
+      handleContainerCapture(imageData);
+    } else if (captureTarget === "license") {
+      handleLicensePlateCapture(imageData);
+    } else if (captureTarget === "secondContainer") {
+      handleSecondContainerCapture(imageData);
+    }
+  };
+
   if (captureTarget) {
     return (
       <CameraCapture
-        onCapture={captureTarget === "container" ? handleContainerCapture : handleLicensePlateCapture}
+        onCapture={handleCapture}
         onClose={() => setCaptureTarget(null)}
       />
     );
@@ -252,7 +288,7 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
                 Add Second Container Number
               </Button>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-semibold text-foreground">
                     Second Container Number
@@ -268,12 +304,27 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <Input
-                  value={secondContainerNumber}
-                  onChange={(e) => setSecondContainerNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g., EFGH7654321"
-                  className="font-mono text-lg"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    value={secondContainerNumber}
+                    onChange={(e) => setSecondContainerNumber(e.target.value.toUpperCase())}
+                    placeholder="e.g., EFGH7654321"
+                    className="font-mono text-lg flex-1"
+                  />
+                  <Button
+                    onClick={() => setCaptureTarget("secondContainer")}
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 shrink-0"
+                    disabled={isProcessingSecondContainer}
+                  >
+                    {isProcessingSecondContainer ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
 
