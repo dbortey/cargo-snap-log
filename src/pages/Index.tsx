@@ -74,9 +74,9 @@ const Index = () => {
     entryType: string;
   }) => {
     try {
-      // Insert first container
       const { error } = await supabase.from("container_entries").insert({
         container_number: data.containerNumber,
+        second_container_number: data.secondContainerNumber || null,
         container_size: data.size,
         user_name: currentUser,
         container_image: data.containerImage,
@@ -85,20 +85,6 @@ const Index = () => {
       });
 
       if (error) throw error;
-
-      // Insert second container if provided
-      if (data.secondContainerNumber?.trim()) {
-        const { error: error2 } = await supabase.from("container_entries").insert({
-          container_number: data.secondContainerNumber,
-          container_size: data.size,
-          user_name: currentUser,
-          container_image: data.containerImage,
-          license_plate_number: data.licensePlateNumber || null,
-          entry_type: data.entryType,
-        });
-
-        if (error2) throw error2;
-      }
 
       toast.success("Entry recorded successfully!");
       queryClient.invalidateQueries({ queryKey: ["container-entries"] });
