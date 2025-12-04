@@ -11,6 +11,7 @@ interface EntryDetailsDialogProps {
   entry: {
     id: string;
     container_number: string;
+    second_container_number?: string | null;
     container_size: string;
     user_name: string;
     created_at: string;
@@ -93,6 +94,11 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange }: EntryDetailsDi
                     <div>
                       <p className="text-xs text-muted-foreground font-medium mb-0.5">Container Number</p>
                       <p className="font-mono font-bold text-xl">{entry.container_number}</p>
+                      {entry.second_container_number && (
+                        <p className="font-mono text-sm text-muted-foreground mt-1">
+                          + {entry.second_container_number}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className={`px-4 py-2 rounded-lg text-sm font-semibold ${

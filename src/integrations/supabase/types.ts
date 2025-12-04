@@ -23,6 +23,7 @@ export type Database = {
           entry_type: string
           id: string
           license_plate_number: string | null
+          second_container_number: string | null
           user_name: string
         }
         Insert: {
@@ -33,6 +34,7 @@ export type Database = {
           entry_type?: string
           id?: string
           license_plate_number?: string | null
+          second_container_number?: string | null
           user_name?: string
         }
         Update: {
@@ -43,6 +45,7 @@ export type Database = {
           entry_type?: string
           id?: string
           license_plate_number?: string | null
+          second_container_number?: string | null
           user_name?: string
         }
         Relationships: []
