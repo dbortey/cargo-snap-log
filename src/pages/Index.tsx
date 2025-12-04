@@ -1,34 +1,25 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { CameraCapture } from "@/components/CameraCapture";
-import { ConfirmEntry } from "@/components/ConfirmEntry";
+import { EntryForm } from "@/components/EntryForm";
 import { EntriesGrid } from "@/components/EntriesGrid";
 import { NameEntry } from "@/components/NameEntry";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { PlusCircle, Container, LogOut, MapPin } from "lucide-react";
-import { compressImage } from "@/lib/imageCompression";
+import { PlusCircle, LogOut, MapPin } from "lucide-react";
 import containerLogo from "@/assets/container-logo.png";
 
 const Index = () => {
   const [currentUser, setCurrentUser] = useState<string>("");
-  const [showCamera, setShowCamera] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [capturedImage, setCapturedImage] = useState<string>("");
-  const [extractedNumber, setExtractedNumber] = useState<string>("");
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [showEntryForm, setShowEntryForm] = useState(false);
   const [isLocationValid, setIsLocationValid] = useState<boolean | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    // Check if user is stored in session
     const storedUser = sessionStorage.getItem("containerTrackerUser");
     if (storedUser) {
       setCurrentUser(storedUser);
     }
-
-    // Check geolocation
     checkLocation();
   }, []);
 
@@ -42,8 +33,6 @@ const Index = () => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        
-        // Greater Accra bounds (approximate)
         const isInGreaterAccra = 
           latitude >= 5.4 && latitude <= 6.0 &&
           longitude >= -0.5 && longitude <= 0.3;
@@ -76,74 +65,48 @@ const Index = () => {
     toast.info("Logged out successfully");
   };
 
-  const handleCapture = async (imageData: string) => {
-    setIsProcessing(true);
-    
+  const handleFormSubmit = async (data: {
+    containerNumber: string;
+    secondContainerNumber?: string;
+    size: string;
+    containerImage: string;
+    licensePlateNumber: string;
+    entryType: string;
+  }) => {
     try {
-      // Compress the image before storing
-      const compressedImage = await compressImage(imageData);
-      setCapturedImage(compressedImage);
-
-      const { data, error } = await supabase.functions.invoke("extract-container-number", {
-        body: { imageData },
-      });
-
-      if (error) throw error;
-
-      if (data.containerNumber === "UNABLE_TO_READ") {
-        toast.warning("Unable to read container number clearly. Please enter it manually.");
-        setExtractedNumber("");
-      } else {
-        setExtractedNumber(data.containerNumber);
-        toast.success("Container number extracted!");
-      }
-      
-      setShowCamera(false);
-      setShowConfirm(true);
-    } catch (error) {
-      console.error("Error processing image:", error);
-      toast.error("Failed to process image. Please try again.");
-      setShowCamera(false);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleConfirm = async (
-    containerNumber: string,
-    size: string,
-    containerImage: string,
-    licensePlateNumber: string,
-    entryType: string
-  ) => {
-    try {
+      // Insert first container
       const { error } = await supabase.from("container_entries").insert({
-        container_number: containerNumber,
-        container_size: size,
+        container_number: data.containerNumber,
+        container_size: data.size,
         user_name: currentUser,
-        container_image: containerImage,
-        license_plate_number: licensePlateNumber || null,
-        entry_type: entryType,
+        container_image: data.containerImage,
+        license_plate_number: data.licensePlateNumber || null,
+        entry_type: data.entryType,
       });
 
       if (error) throw error;
+
+      // Insert second container if provided
+      if (data.secondContainerNumber?.trim()) {
+        const { error: error2 } = await supabase.from("container_entries").insert({
+          container_number: data.secondContainerNumber,
+          container_size: data.size,
+          user_name: currentUser,
+          container_image: data.containerImage,
+          license_plate_number: data.licensePlateNumber || null,
+          entry_type: data.entryType,
+        });
+
+        if (error2) throw error2;
+      }
 
       toast.success("Entry recorded successfully!");
       queryClient.invalidateQueries({ queryKey: ["container-entries"] });
-      
-      setShowConfirm(false);
-      setCapturedImage("");
-      setExtractedNumber("");
+      setShowEntryForm(false);
     } catch (error) {
       console.error("Error saving entry:", error);
       toast.error("Failed to save entry. Please try again.");
     }
-  };
-
-  const handleCancel = () => {
-    setShowConfirm(false);
-    setCapturedImage("");
-    setExtractedNumber("");
   };
 
   if (!currentUser) {
@@ -180,19 +143,8 @@ const Index = () => {
     );
   }
 
-  if (showCamera) {
-    return <CameraCapture onCapture={handleCapture} onClose={() => setShowCamera(false)} />;
-  }
-
-  if (showConfirm) {
-    return (
-      <ConfirmEntry
-        containerNumber={extractedNumber}
-        imageData={capturedImage}
-        onConfirm={handleConfirm}
-        onCancel={handleCancel}
-      />
-    );
+  if (showEntryForm) {
+    return <EntryForm onSubmit={handleFormSubmit} onCancel={() => setShowEntryForm(false)} />;
   }
 
   return (
@@ -228,13 +180,12 @@ const Index = () => {
       <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6 pb-24">
         <div className="sticky top-4 z-10">
           <Button
-            onClick={() => setShowCamera(true)}
-            disabled={isProcessing}
+            onClick={() => setShowEntryForm(true)}
             size="lg"
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-lg h-16 shadow-xl hover:shadow-2xl transition-all duration-200"
           >
             <PlusCircle className="mr-2 h-6 w-6" />
-            {isProcessing ? "Processing..." : "📸 Record New Entry"}
+            📸 Record New Entry
           </Button>
         </div>
 
