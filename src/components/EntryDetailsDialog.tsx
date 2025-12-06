@@ -83,22 +83,28 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange }: EntryDetailsDi
 
           {/* Main Content */}
           <div className="px-5 py-4 space-y-4">
-            {/* Container Number - Hero */}
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Container</p>
-                <p className="font-mono font-bold text-2xl tracking-tight text-foreground">
-                  {entry.container_number}
-                </p>
-                {entry.second_container_number && (
-                  <p className="font-mono text-sm text-muted-foreground mt-0.5">
-                    + {entry.second_container_number}
+            {/* Container Numbers - Equal Treatment */}
+            <div className="space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Container 1</p>
+                  <p className="font-mono font-bold text-xl tracking-tight text-foreground">
+                    {entry.container_number}
                   </p>
-                )}
+                </div>
+                <span className="px-3 py-1.5 bg-muted rounded-lg text-sm font-semibold text-foreground">
+                  {entry.container_size}
+                </span>
               </div>
-              <span className="px-3 py-1.5 bg-muted rounded-lg text-sm font-semibold text-foreground">
-                {entry.container_size}
-              </span>
+              
+              {entry.second_container_number && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Container 2</p>
+                  <p className="font-mono font-bold text-xl tracking-tight text-foreground">
+                    {entry.second_container_number}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Details Grid */}
@@ -147,22 +153,15 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange }: EntryDetailsDi
           </div>
 
           {/* Actions */}
-          <div className="px-5 py-4 border-t border-border/50 flex gap-3">
+          <div className="px-5 py-4 border-t border-border/50">
             <Button
               variant="destructive"
               onClick={handleDelete}
               disabled={isDeleting}
-              className="flex-1 h-11 rounded-xl font-medium"
+              className="w-full h-11 rounded-xl font-medium"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              {isDeleting ? "Deleting..." : "Delete"}
-            </Button>
-            <Button 
-              variant="secondary" 
-              onClick={() => onOpenChange(false)} 
-              className="flex-1 h-11 rounded-xl font-medium"
-            >
-              Close
+              {isDeleting ? "Deleting..." : "Delete Entry"}
             </Button>
           </div>
         </DialogContent>
