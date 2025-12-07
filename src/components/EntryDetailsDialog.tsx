@@ -73,12 +73,6 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange }: EntryDetailsDi
                 {entry.entry_type}
               </span>
             </div>
-            <button 
-              onClick={() => onOpenChange(false)}
-              className="p-1.5 rounded-full hover:bg-muted transition-colors"
-            >
-              <X className="h-4 w-4 text-muted-foreground" />
-            </button>
           </div>
 
           {/* Main Content */}
@@ -173,6 +167,7 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange }: EntryDetailsDi
           <button 
             onClick={() => setImageExpanded(false)}
             className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
+            title="Close expanded image"
           >
             <X className="h-5 w-5 text-white" />
           </button>
