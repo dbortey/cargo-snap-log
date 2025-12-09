@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          last_login_at: string | null
+          name: string
+          password_hash: string
+          role: Database["public"]["Enums"]["admin_role"]
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          last_login_at?: string | null
+          name: string
+          password_hash: string
+          role?: Database["public"]["Enums"]["admin_role"]
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          last_login_at?: string | null
+          name?: string
+          password_hash?: string
+          role?: Database["public"]["Enums"]["admin_role"]
+        }
+        Relationships: []
+      }
       container_entries: {
         Row: {
           container_image: string | null
@@ -102,10 +132,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      complete_recovery: { Args: { user_id: string }; Returns: boolean }
+      create_admin_user: {
+        Args: {
+          admin_email: string
+          admin_name: string
+          admin_password: string
+          admin_role?: Database["public"]["Enums"]["admin_role"]
+        }
+        Returns: string
+      }
+      get_recovery_requests: {
+        Args: never
+        Returns: {
+          code: string
+          id: string
+          name: string
+          phone_number: string
+          recovery_requested_at: string
+          staff_id: string
+        }[]
+      }
+      verify_admin_login: {
+        Args: { admin_email: string; admin_password: string }
+        Returns: {
+          email: string
+          id: string
+          name: string
+          role: Database["public"]["Enums"]["admin_role"]
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      admin_role: "admin" | "super_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -232,6 +291,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      admin_role: ["admin", "super_admin"],
+    },
   },
 } as const

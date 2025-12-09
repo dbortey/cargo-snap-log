@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.extract-license-plate]
 verify_jwt = false
+
+[functions.admin-auth]
+verify_jwt = false
+
+[functions.admin-recovery]
+verify_jwt = false
