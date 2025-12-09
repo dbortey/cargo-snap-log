@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, LogIn, Mail, Lock } from "lucide-react";
+import { Shield, LogIn, Mail, Lock, ArrowLeft } from "lucide-react";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -17,6 +18,7 @@ interface AdminLoginProps {
 }
 
 export const AdminLogin = ({ onLogin }: AdminLoginProps) => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -70,7 +72,17 @@ export const AdminLogin = ({ onLogin }: AdminLoginProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+      {/* Back button */}
+      <button
+        onClick={() => navigate("/")}
+        className="absolute top-4 left-4 p-2 text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+        aria-label="Back to login"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        <span className="text-sm">Back</span>
+      </button>
+      
       <Card className="w-full max-w-md p-8 space-y-6 border-border/50 shadow-xl">
         <div className="text-center space-y-4">
           <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
