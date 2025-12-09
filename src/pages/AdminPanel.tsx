@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,8 +21,10 @@ import {
   Trash2,
   X,
   Package,
+  Search,
+  List,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO, isToday, isYesterday } from "date-fns";
 
 interface RecoveryRequest {
   id: string;
@@ -43,10 +46,24 @@ interface DeletionRequest {
   deletion_requested_at: string;
 }
 
+interface ContainerEntry {
+  id: string;
+  container_number: string;
+  second_container_number: string | null;
+  container_size: string;
+  entry_type: string;
+  user_name: string;
+  created_at: string;
+  license_plate_number: string | null;
+  deletion_requested: boolean;
+}
+
 const AdminPanel = () => {
   const { admin, isLoading: sessionLoading, createSession, logout, isAuthenticated } = useAdminSession();
   const [recoveryRequests, setRecoveryRequests] = useState<RecoveryRequest[]>([]);
   const [deletionRequests, setDeletionRequests] = useState<DeletionRequest[]>([]);
+  const [entries, setEntries] = useState<ContainerEntry[]>([]);
+  const [entriesSearch, setEntriesSearch] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -86,9 +103,24 @@ const AdminPanel = () => {
     }
   };
 
+  const fetchEntries = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("container_entries")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setEntries(data || []);
+    } catch (error) {
+      console.error("Error fetching entries:", error);
+      toast.error("Failed to fetch entries");
+    }
+  };
+
   const fetchAllRequests = async () => {
     setIsLoading(true);
-    await Promise.all([fetchRecoveryRequests(), fetchDeletionRequests()]);
+    await Promise.all([fetchRecoveryRequests(), fetchDeletionRequests(), fetchEntries()]);
     setIsLoading(false);
   };
 
@@ -231,8 +263,12 @@ const AdminPanel = () => {
           </Button>
         </div>
 
-        <Tabs defaultValue="recovery" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <Tabs defaultValue="entries" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3 max-w-lg">
+            <TabsTrigger value="entries" className="gap-2">
+              <List className="h-4 w-4" />
+              Entries ({entries.length})
+            </TabsTrigger>
             <TabsTrigger value="recovery" className="gap-2">
               <User className="h-4 w-4" />
               Recovery ({recoveryRequests.length})
@@ -242,6 +278,109 @@ const AdminPanel = () => {
               Deletion ({deletionRequests.length})
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="entries" className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search containers, names, plates..."
+                value={entriesSearch}
+                onChange={(e) => setEntriesSearch(e.target.value)}
+                className="pl-10 h-11 max-w-md"
+              />
+            </div>
+
+            {entries.length === 0 ? (
+              <Card className="p-12 text-center">
+                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                  <Package className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Entries</h3>
+                <p className="text-muted-foreground">No container entries have been recorded yet.</p>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(
+                  entries
+                    .filter((entry) => {
+                      const search = entriesSearch.toLowerCase();
+                      return (
+                        entry.container_number.toLowerCase().includes(search) ||
+                        entry.user_name.toLowerCase().includes(search) ||
+                        entry.license_plate_number?.toLowerCase().includes(search) ||
+                        entry.second_container_number?.toLowerCase().includes(search)
+                      );
+                    })
+                    .reduce((groups: Record<string, ContainerEntry[]>, entry) => {
+                      const date = parseISO(entry.created_at);
+                      let dateKey: string;
+                      if (isToday(date)) {
+                        dateKey = "Today";
+                      } else if (isYesterday(date)) {
+                        dateKey = "Yesterday";
+                      } else {
+                        dateKey = format(date, "MMMM d, yyyy");
+                      }
+                      if (!groups[dateKey]) groups[dateKey] = [];
+                      groups[dateKey].push(entry);
+                      return groups;
+                    }, {})
+                ).map(([dateGroup, groupEntries]) => (
+                  <div key={dateGroup}>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 px-1">
+                      {dateGroup}
+                    </h3>
+                    <div className="grid gap-2">
+                      {groupEntries.map((entry) => (
+                        <Card key={entry.id} className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                              entry.entry_type === "receiving" ? "bg-blue-500" : "bg-emerald-500"
+                            }`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <div>
+                                  <p className="font-mono font-bold text-base text-foreground">
+                                    {entry.container_number}
+                                  </p>
+                                  {entry.second_container_number && (
+                                    <p className="font-mono text-xs text-muted-foreground">
+                                      + {entry.second_container_number}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {entry.deletion_requested && (
+                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs rounded font-medium">
+                                      Deletion Pending
+                                    </span>
+                                  )}
+                                  <span className="px-2 py-0.5 bg-muted rounded text-xs font-medium text-muted-foreground">
+                                    {entry.container_size}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                                <span>{entry.user_name}</span>
+                                <span>•</span>
+                                <span>{format(new Date(entry.created_at), "h:mm a")}</span>
+                                {entry.license_plate_number && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="font-mono">{entry.license_plate_number}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="recovery" className="space-y-4">
             {recoveryRequests.length === 0 ? (
