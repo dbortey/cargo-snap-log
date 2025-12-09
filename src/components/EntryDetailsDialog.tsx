@@ -156,8 +156,8 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
               </button>
             )}
           </div>
-
-          {/* Actions - Only show for owner */}
+          
+          {/* Actions - Show for owner */}
           {isOwner && (
             <div className="px-5 py-4 border-t border-border/50">
               {alreadyRequested ? (
@@ -167,13 +167,14 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
                 </div>
               ) : (
                 <Button
-                  variant="destructive"
+                  variant="ghost"
                   onClick={handleRequestDeletion}
                   disabled={isRequesting}
-                  className="w-full h-11 rounded-xl font-medium"
+                  className="w-full h-11 rounded-xl font-medium text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  {isRequesting ? "Requesting..." : "Request Deletion"}
+                  {isRequesting ? "Requesting..." : "Delete Entry"}
+                  <span className="ml-2 text-xs text-muted-foreground">(admin will confirm)</span>
                 </Button>
               )}
             </div>
