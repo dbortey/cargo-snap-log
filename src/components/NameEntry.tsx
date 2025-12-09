@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { LogIn, UserPlus, KeyRound, Phone, User, Hash, Sparkles } from "lucide-react";
+import { LogIn, UserPlus, KeyRound, Phone, User, Hash, Sparkles, Shield } from "lucide-react";
 import containerLogo from "@/assets/container-logo.png";
 import { loginSchema, signupSchema, recoverySchema } from "@/lib/validation";
 import { z } from "zod";
@@ -23,6 +24,7 @@ interface FieldError {
 }
 
 export const NameEntry = ({ onConnect }: NameEntryProps) => {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>("login");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FieldError>({});
@@ -259,7 +261,16 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+      {/* Admin toggle - subtle icon at top right */}
+      <button
+        onClick={() => navigate("/admin")}
+        className="absolute top-4 right-4 p-2 opacity-5 hover:opacity-30 transition-opacity"
+        aria-label="Admin login"
+      >
+        <Shield className="h-5 w-5" />
+      </button>
+      
       <Card className="w-full max-w-md p-8 space-y-6 border-border/50 shadow-xl">
         <div className="text-center space-y-4">
           <img 
