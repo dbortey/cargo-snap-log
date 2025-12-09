@@ -50,6 +50,9 @@ export type Database = {
           container_number: string
           container_size: string
           created_at: string
+          deletion_requested: boolean | null
+          deletion_requested_at: string | null
+          deletion_requested_by: string | null
           entry_type: string
           id: string
           license_plate_number: string | null
@@ -62,6 +65,9 @@ export type Database = {
           container_number: string
           container_size: string
           created_at?: string
+          deletion_requested?: boolean | null
+          deletion_requested_at?: string | null
+          deletion_requested_by?: string | null
           entry_type?: string
           id?: string
           license_plate_number?: string | null
@@ -74,6 +80,9 @@ export type Database = {
           container_number?: string
           container_size?: string
           created_at?: string
+          deletion_requested?: boolean | null
+          deletion_requested_at?: string | null
+          deletion_requested_by?: string | null
           entry_type?: string
           id?: string
           license_plate_number?: string | null
@@ -82,6 +91,13 @@ export type Database = {
           user_name?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "container_entries_deletion_requested_by_fkey"
+            columns: ["deletion_requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "container_entries_user_id_fkey"
             columns: ["user_id"]
@@ -133,6 +149,7 @@ export type Database = {
     }
     Functions: {
       complete_recovery: { Args: { user_id: string }; Returns: boolean }
+      confirm_entry_deletion: { Args: { entry_id: string }; Returns: boolean }
       create_admin_user: {
         Args: {
           admin_email: string
@@ -141,6 +158,19 @@ export type Database = {
           admin_role?: Database["public"]["Enums"]["admin_role"]
         }
         Returns: string
+      }
+      get_deletion_requests: {
+        Args: never
+        Returns: {
+          container_number: string
+          container_size: string
+          created_at: string
+          deletion_requested_at: string
+          entry_type: string
+          id: string
+          second_container_number: string
+          user_name: string
+        }[]
       }
       get_recovery_requests: {
         Args: never
@@ -153,6 +183,7 @@ export type Database = {
           staff_id: string
         }[]
       }
+      reject_deletion_request: { Args: { entry_id: string }; Returns: boolean }
       verify_admin_login: {
         Args: { admin_email: string; admin_password: string }
         Returns: {
