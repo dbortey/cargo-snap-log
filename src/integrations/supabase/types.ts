@@ -52,22 +52,37 @@ export type Database = {
       }
       users: {
         Row: {
+          code: string | null
           created_at: string
           id: string
           last_seen_at: string
           name: string
+          phone_number: string | null
+          recovery_requested: boolean | null
+          recovery_requested_at: string | null
+          staff_id: string | null
         }
         Insert: {
+          code?: string | null
           created_at?: string
           id?: string
           last_seen_at?: string
           name: string
+          phone_number?: string | null
+          recovery_requested?: boolean | null
+          recovery_requested_at?: string | null
+          staff_id?: string | null
         }
         Update: {
+          code?: string | null
           created_at?: string
           id?: string
           last_seen_at?: string
           name?: string
+          phone_number?: string | null
+          recovery_requested?: boolean | null
+          recovery_requested_at?: string | null
+          staff_id?: string | null
         }
         Relationships: []
       }
