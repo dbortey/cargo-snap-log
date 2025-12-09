@@ -24,6 +24,7 @@ export type Database = {
           id: string
           license_plate_number: string | null
           second_container_number: string | null
+          user_id: string | null
           user_name: string
         }
         Insert: {
@@ -35,6 +36,7 @@ export type Database = {
           id?: string
           license_plate_number?: string | null
           second_container_number?: string | null
+          user_id?: string | null
           user_name?: string
         }
         Update: {
@@ -46,9 +48,18 @@ export type Database = {
           id?: string
           license_plate_number?: string | null
           second_container_number?: string | null
+          user_id?: string | null
           user_name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "container_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {

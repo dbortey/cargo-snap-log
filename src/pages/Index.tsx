@@ -9,21 +9,20 @@ import { toast } from "sonner";
 import { PlusCircle, LogOut, MapPin, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import containerLogo from "@/assets/container-logo.png";
+import { useSession } from "@/hooks/useSession";
 
 const Index = () => {
-  const [currentUser, setCurrentUser] = useState<string>("");
+  const { user, isLoading: sessionLoading, createSession, logout, isAuthenticated } = useSession();
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [isLocationValid, setIsLocationValid] = useState<boolean | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const storedUser = sessionStorage.getItem("containerTrackerUser");
-    if (storedUser) {
-      setCurrentUser(storedUser);
+    if (isAuthenticated) {
+      checkLocation();
     }
-    checkLocation();
-  }, []);
+  }, [isAuthenticated]);
 
   const checkLocation = () => {
     if (!navigator.geolocation) {
@@ -56,14 +55,13 @@ const Index = () => {
     );
   };
 
-  const handleConnect = (userName: string) => {
-    setCurrentUser(userName);
-    sessionStorage.setItem("containerTrackerUser", userName);
+  const handleConnect = (userId: string, userName: string, staffId: string) => {
+    createSession({ id: userId, name: userName, staffId });
   };
 
   const handleLogout = () => {
-    setCurrentUser("");
-    sessionStorage.removeItem("containerTrackerUser");
+    logout();
+    setIsLocationValid(null);
     toast.info("Logged out successfully");
   };
 
@@ -75,12 +73,15 @@ const Index = () => {
     licensePlateNumber: string;
     entryType: string;
   }) => {
+    if (!user) return;
+
     try {
       const { error } = await supabase.from("container_entries").insert({
         container_number: data.containerNumber,
         second_container_number: data.secondContainerNumber || null,
         container_size: data.size,
-        user_name: currentUser,
+        user_name: user.name,
+        user_id: user.id,
         container_image: data.containerImage,
         license_plate_number: data.licensePlateNumber || null,
         entry_type: data.entryType,
@@ -97,7 +98,19 @@ const Index = () => {
     }
   };
 
-  if (!currentUser) {
+  // Show loading while checking session
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return <NameEntry onConnect={handleConnect} />;
   }
 
@@ -159,7 +172,7 @@ const Index = () => {
             </Button>
             <div className="text-right hidden sm:block">
               <p className="text-xs text-primary-foreground/70">Logged in as</p>
-              <p className="text-sm font-semibold">{currentUser}</p>
+              <p className="text-sm font-semibold">{user?.name}</p>
             </div>
             <Button
               variant="ghost"

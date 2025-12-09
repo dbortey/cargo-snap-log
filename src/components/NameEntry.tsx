@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -6,16 +6,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LogIn, UserPlus, KeyRound, Phone, User, Hash, Sparkles } from "lucide-react";
 import containerLogo from "@/assets/container-logo.png";
+import { loginSchema, signupSchema, recoverySchema } from "@/lib/validation";
+import { z } from "zod";
 
 interface NameEntryProps {
-  onConnect: (userName: string) => void;
+  onConnect: (userId: string, userName: string, staffId: string) => void;
 }
 
 type AuthMode = "login" | "signup" | "recover";
 
+interface FieldError {
+  name?: string;
+  code?: string;
+  staffId?: string;
+  phone?: string;
+}
+
 export const NameEntry = ({ onConnect }: NameEntryProps) => {
   const [mode, setMode] = useState<AuthMode>("login");
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<FieldError>({});
 
   // Login fields
   const [loginName, setLoginName] = useState("");
@@ -30,57 +40,85 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
   // Recovery fields
   const [recoverStaffId, setRecoverStaffId] = useState("");
 
+  const clearErrors = () => setErrors({});
+
   const generateCode = () => {
-    if (!signupName.trim() || !signupStaffId.trim()) {
-      toast.error("Please enter your name and staff ID first");
-      return;
-    }
+    clearErrors();
+    
+    try {
+      // Validate name and staff ID before generating
+      const nameResult = z.string().trim().min(2).regex(/^[a-zA-Z\s]+$/).safeParse(signupName);
+      const staffIdResult = z.string().trim().min(3).regex(/^[a-zA-Z0-9]+$/).safeParse(signupStaffId);
 
-    // Get letters from name (only alphabetic characters)
-    const nameLetters = signupName.replace(/[^a-zA-Z]/g, "").toUpperCase();
-    if (nameLetters.length < 2) {
-      toast.error("Name must contain at least 2 letters");
-      return;
-    }
-
-    // Get last 3 digits from staff ID
-    const staffDigits = signupStaffId.replace(/[^0-9]/g, "");
-    if (staffDigits.length < 3) {
-      toast.error("Staff ID must contain at least 3 digits");
-      return;
-    }
-
-    // Pick 2 random letters from name
-    const randomIndices: number[] = [];
-    while (randomIndices.length < 2) {
-      const idx = Math.floor(Math.random() * nameLetters.length);
-      if (!randomIndices.includes(idx)) {
-        randomIndices.push(idx);
+      if (!nameResult.success) {
+        setErrors({ name: "Name must be at least 2 letters" });
+        return;
       }
+      if (!staffIdResult.success) {
+        setErrors({ staffId: "Staff ID must be at least 3 alphanumeric characters" });
+        return;
+      }
+
+      // Get letters from name (only alphabetic characters)
+      const nameLetters = signupName.replace(/[^a-zA-Z]/g, "").toUpperCase();
+      if (nameLetters.length < 2) {
+        setErrors({ name: "Name must contain at least 2 letters" });
+        return;
+      }
+
+      // Get last 3 digits from staff ID
+      const staffDigits = signupStaffId.replace(/[^0-9]/g, "");
+      if (staffDigits.length < 3) {
+        setErrors({ staffId: "Staff ID must contain at least 3 digits" });
+        return;
+      }
+
+      // Pick 2 random letters from name
+      const randomIndices: number[] = [];
+      while (randomIndices.length < 2) {
+        const idx = Math.floor(Math.random() * nameLetters.length);
+        if (!randomIndices.includes(idx)) {
+          randomIndices.push(idx);
+        }
+      }
+      const twoLetters = randomIndices.map(i => nameLetters[i]).join("");
+
+      // Get last 3 digits
+      const lastThreeDigits = staffDigits.slice(-3);
+
+      const code = `${twoLetters}${lastThreeDigits}`;
+      setGeneratedCode(code);
+      toast.success("Code generated! Save this code for login.");
+    } catch {
+      toast.error("Failed to generate code");
     }
-    const twoLetters = randomIndices.map(i => nameLetters[i]).join("");
-
-    // Get last 3 digits
-    const lastThreeDigits = staffDigits.slice(-3);
-
-    const code = `${twoLetters}${lastThreeDigits}`;
-    setGeneratedCode(code);
-    toast.success("Code generated! Save this code for login.");
   };
 
   const handleLogin = async () => {
-    if (!loginName.trim() || !loginCode.trim()) {
-      toast.error("Please enter your name and code");
+    clearErrors();
+
+    const result = loginSchema.safeParse({
+      name: loginName,
+      code: loginCode.toUpperCase(),
+    });
+
+    if (!result.success) {
+      const fieldErrors: FieldError = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as keyof FieldError;
+        fieldErrors[field] = err.message;
+      });
+      setErrors(fieldErrors);
       return;
     }
 
     setIsLoading(true);
     try {
       const { data: user, error } = await supabase
-        .from("users" as any)
-        .select("*")
-        .eq("name", loginName.trim())
-        .eq("code", loginCode.trim().toUpperCase())
+        .from("users")
+        .select("id, name, staff_id")
+        .eq("name", result.data.name)
+        .eq("code", result.data.code)
         .maybeSingle();
 
       if (error) throw error;
@@ -92,12 +130,12 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
 
       // Update last_seen_at
       await supabase
-        .from("users" as any)
-        .update({ last_seen_at: new Date().toISOString() } as any)
-        .eq("id", (user as any).id);
+        .from("users")
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq("id", user.id);
 
-      onConnect((user as any).name);
-      toast.success(`Welcome back, ${(user as any).name}!`);
+      onConnect(user.id, user.name, user.staff_id || "");
+      toast.success(`Welcome back, ${user.name}!`);
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Failed to login. Please try again.");
@@ -107,8 +145,26 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
   };
 
   const handleSignup = async () => {
-    if (!signupName.trim() || !signupStaffId.trim() || !signupPhone.trim() || !generatedCode) {
-      toast.error("Please fill all fields and generate your code");
+    clearErrors();
+
+    const result = signupSchema.safeParse({
+      name: signupName,
+      staffId: signupStaffId,
+      phone: signupPhone,
+    });
+
+    if (!result.success) {
+      const fieldErrors: FieldError = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as keyof FieldError;
+        fieldErrors[field] = err.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    if (!generatedCode) {
+      toast.error("Please generate your code first");
       return;
     }
 
@@ -116,30 +172,32 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
     try {
       // Check if staff ID already exists
       const { data: existingUser } = await supabase
-        .from("users" as any)
+        .from("users")
         .select("id")
-        .eq("staff_id", signupStaffId.trim())
+        .eq("staff_id", result.data.staffId)
         .maybeSingle();
 
       if (existingUser) {
-        toast.error("This staff ID is already registered");
+        setErrors({ staffId: "This staff ID is already registered" });
         return;
       }
 
       // Create new user
-      const { error: insertError } = await supabase
-        .from("users" as any)
+      const { data: newUser, error: insertError } = await supabase
+        .from("users")
         .insert({
-          name: signupName.trim(),
-          staff_id: signupStaffId.trim(),
-          phone_number: signupPhone.trim(),
+          name: result.data.name,
+          staff_id: result.data.staffId,
+          phone_number: result.data.phone,
           code: generatedCode,
-        } as any);
+        })
+        .select("id, name, staff_id")
+        .single();
 
       if (insertError) throw insertError;
 
-      onConnect(signupName.trim());
-      toast.success(`Welcome, ${signupName}! Your code is: ${generatedCode}`);
+      onConnect(newUser.id, newUser.name, newUser.staff_id || "");
+      toast.success(`Welcome, ${result.data.name}! Your code is: ${generatedCode}`);
     } catch (error) {
       console.error("Signup error:", error);
       toast.error("Failed to create account. Please try again.");
@@ -149,37 +207,49 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
   };
 
   const handleRecovery = async () => {
-    if (!recoverStaffId.trim()) {
-      toast.error("Please enter your staff ID");
+    clearErrors();
+
+    const result = recoverySchema.safeParse({
+      staffId: recoverStaffId,
+    });
+
+    if (!result.success) {
+      const fieldErrors: FieldError = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as keyof FieldError;
+        fieldErrors[field] = err.message;
+      });
+      setErrors(fieldErrors);
       return;
     }
 
     setIsLoading(true);
     try {
       const { data: user, error } = await supabase
-        .from("users" as any)
+        .from("users")
         .select("id, name")
-        .eq("staff_id", recoverStaffId.trim())
+        .eq("staff_id", result.data.staffId)
         .maybeSingle();
 
       if (error) throw error;
 
       if (!user) {
-        toast.error("No account found with this staff ID");
+        setErrors({ staffId: "No account found with this staff ID" });
         return;
       }
 
       // Mark recovery requested
       await supabase
-        .from("users" as any)
+        .from("users")
         .update({
           recovery_requested: true,
           recovery_requested_at: new Date().toISOString(),
-        } as any)
-        .eq("id", (user as any).id);
+        })
+        .eq("id", user.id);
 
       toast.success("Recovery request sent! An admin will contact you shortly.");
       setMode("login");
+      setRecoverStaffId("");
     } catch (error) {
       console.error("Recovery error:", error);
       toast.error("Failed to request recovery. Please try again.");
@@ -211,30 +281,46 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
         {mode === "login" && (
           <div className="space-y-4">
             <div className="space-y-3">
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="First name"
-                  value={loginName}
-                  onChange={(e) => setLoginName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-                  disabled={isLoading}
-                  className="pl-10 h-12"
-                />
+              <div className="space-y-1">
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="First name"
+                    value={loginName}
+                    onChange={(e) => {
+                      setLoginName(e.target.value);
+                      clearErrors();
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                    disabled={isLoading}
+                    className={`pl-10 h-12 ${errors.name ? "border-destructive" : ""}`}
+                  />
+                </div>
+                {errors.name && (
+                  <p className="text-xs text-destructive pl-1">{errors.name}</p>
+                )}
               </div>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Your code (e.g., AB123)"
-                  value={loginCode}
-                  onChange={(e) => setLoginCode(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-                  disabled={isLoading}
-                  className="pl-10 h-12 font-mono uppercase"
-                  maxLength={5}
-                />
+              <div className="space-y-1">
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Your code (e.g., AB123)"
+                    value={loginCode}
+                    onChange={(e) => {
+                      setLoginCode(e.target.value.toUpperCase());
+                      clearErrors();
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                    disabled={isLoading}
+                    className={`pl-10 h-12 font-mono uppercase ${errors.code ? "border-destructive" : ""}`}
+                    maxLength={5}
+                  />
+                </div>
+                {errors.code && (
+                  <p className="text-xs text-destructive pl-1">{errors.code}</p>
+                )}
               </div>
             </div>
 
@@ -251,7 +337,10 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
             <div className="flex items-center gap-2 pt-2">
               <Button
                 variant="ghost"
-                onClick={() => setMode("signup")}
+                onClick={() => {
+                  setMode("signup");
+                  clearErrors();
+                }}
                 className="flex-1 text-muted-foreground"
               >
                 <UserPlus className="mr-2 h-4 w-4" />
@@ -259,7 +348,10 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => setMode("recover")}
+                onClick={() => {
+                  setMode("recover");
+                  clearErrors();
+                }}
                 className="flex-1 text-muted-foreground"
               >
                 <KeyRound className="mr-2 h-4 w-4" />
@@ -273,44 +365,64 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
         {mode === "signup" && (
           <div className="space-y-4">
             <div className="space-y-3">
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="First name"
-                  value={signupName}
-                  onChange={(e) => {
-                    setSignupName(e.target.value);
-                    setGeneratedCode("");
-                  }}
-                  disabled={isLoading}
-                  className="pl-10 h-12"
-                />
+              <div className="space-y-1">
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="First name"
+                    value={signupName}
+                    onChange={(e) => {
+                      setSignupName(e.target.value);
+                      setGeneratedCode("");
+                      clearErrors();
+                    }}
+                    disabled={isLoading}
+                    className={`pl-10 h-12 ${errors.name ? "border-destructive" : ""}`}
+                  />
+                </div>
+                {errors.name && (
+                  <p className="text-xs text-destructive pl-1">{errors.name}</p>
+                )}
               </div>
-              <div className="relative">
-                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Staff ID"
-                  value={signupStaffId}
-                  onChange={(e) => {
-                    setSignupStaffId(e.target.value);
-                    setGeneratedCode("");
-                  }}
-                  disabled={isLoading}
-                  className="pl-10 h-12"
-                />
+              <div className="space-y-1">
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Staff ID"
+                    value={signupStaffId}
+                    onChange={(e) => {
+                      setSignupStaffId(e.target.value);
+                      setGeneratedCode("");
+                      clearErrors();
+                    }}
+                    disabled={isLoading}
+                    className={`pl-10 h-12 ${errors.staffId ? "border-destructive" : ""}`}
+                  />
+                </div>
+                {errors.staffId && (
+                  <p className="text-xs text-destructive pl-1">{errors.staffId}</p>
+                )}
               </div>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="tel"
-                  placeholder="Phone number (for recovery)"
-                  value={signupPhone}
-                  onChange={(e) => setSignupPhone(e.target.value)}
-                  disabled={isLoading}
-                  className="pl-10 h-12"
-                />
+              <div className="space-y-1">
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    placeholder="Phone (0XXXXXXXXX or +233XXXXXXXXX)"
+                    value={signupPhone}
+                    onChange={(e) => {
+                      setSignupPhone(e.target.value);
+                      clearErrors();
+                    }}
+                    disabled={isLoading}
+                    className={`pl-10 h-12 ${errors.phone ? "border-destructive" : ""}`}
+                  />
+                </div>
+                {errors.phone && (
+                  <p className="text-xs text-destructive pl-1">{errors.phone}</p>
+                )}
               </div>
             </div>
 
@@ -352,7 +464,10 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
 
             <Button
               variant="ghost"
-              onClick={() => setMode("login")}
+              onClick={() => {
+                setMode("login");
+                clearErrors();
+              }}
               className="w-full text-muted-foreground"
             >
               Already have an account? Sign in
@@ -367,17 +482,25 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
               Enter your staff ID and an admin will send your code to your registered phone number.
             </p>
 
-            <div className="relative">
-              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Staff ID"
-                value={recoverStaffId}
-                onChange={(e) => setRecoverStaffId(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleRecovery()}
-                disabled={isLoading}
-                className="pl-10 h-12"
-              />
+            <div className="space-y-1">
+              <div className="relative">
+                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Staff ID"
+                  value={recoverStaffId}
+                  onChange={(e) => {
+                    setRecoverStaffId(e.target.value);
+                    clearErrors();
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleRecovery()}
+                  disabled={isLoading}
+                  className={`pl-10 h-12 ${errors.staffId ? "border-destructive" : ""}`}
+                />
+              </div>
+              {errors.staffId && (
+                <p className="text-xs text-destructive pl-1">{errors.staffId}</p>
+              )}
             </div>
 
             <Button
@@ -392,7 +515,10 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
 
             <Button
               variant="ghost"
-              onClick={() => setMode("login")}
+              onClick={() => {
+                setMode("login");
+                clearErrors();
+              }}
               className="w-full text-muted-foreground"
             >
               Back to Sign In
