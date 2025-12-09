@@ -6,7 +6,7 @@ import { NameEntry } from "@/components/NameEntry";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { PlusCircle, LogOut, MapPin, BarChart3 } from "lucide-react";
+import { PlusCircle, LogOut, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import containerLogo from "@/assets/container-logo.png";
 import { useSession } from "@/hooks/useSession";
@@ -162,14 +162,6 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="text-primary-foreground hover:bg-primary-foreground/20 h-10 px-3"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
             <div className="text-right hidden sm:block">
               <p className="text-xs text-primary-foreground/70">Logged in as</p>
               <p className="text-sm font-semibold">{user?.name}</p>
