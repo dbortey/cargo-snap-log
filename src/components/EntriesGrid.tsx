@@ -12,16 +12,22 @@ interface ContainerEntry {
   second_container_number?: string | null;
   container_size: string;
   user_name: string;
+  user_id?: string | null;
   created_at: string;
   container_image?: string | null;
   license_plate_number?: string | null;
   entry_type: string;
+  deletion_requested?: boolean;
 }
 
 type FilterType = "all" | "receiving" | "clearing";
 type FilterSize = "all" | "20ft" | "40ft" | "45ft";
 
-export const EntriesGrid = () => {
+interface EntriesGridProps {
+  currentUserId?: string;
+}
+
+export const EntriesGrid = ({ currentUserId }: EntriesGridProps) => {
   const [selectedEntry, setSelectedEntry] = useState<ContainerEntry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -210,6 +216,7 @@ export const EntriesGrid = () => {
         entry={selectedEntry}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        currentUserId={currentUserId}
       />
     </>
   );

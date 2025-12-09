@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAdminSession } from "@/hooks/useAdminSession";
@@ -16,6 +17,9 @@ import {
   Copy,
   CheckCircle,
   AlertCircle,
+  Trash2,
+  X,
+  Package,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -28,33 +32,64 @@ interface RecoveryRequest {
   recovery_requested_at: string;
 }
 
+interface DeletionRequest {
+  id: string;
+  container_number: string;
+  second_container_number: string | null;
+  container_size: string;
+  entry_type: string;
+  user_name: string;
+  created_at: string;
+  deletion_requested_at: string;
+}
+
 const AdminPanel = () => {
   const { admin, isLoading: sessionLoading, createSession, logout, isAuthenticated } = useAdminSession();
-  const [requests, setRequests] = useState<RecoveryRequest[]>([]);
+  const [recoveryRequests, setRecoveryRequests] = useState<RecoveryRequest[]>([]);
+  const [deletionRequests, setDeletionRequests] = useState<DeletionRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchRecoveryRequests = async () => {
-    setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("admin-recovery", {
         body: { action: "get_requests" },
       });
 
       if (error) throw error;
-
       if (data.error) {
         toast.error(data.error);
         return;
       }
-
-      setRequests(data.requests || []);
+      setRecoveryRequests(data.requests || []);
     } catch (error) {
       console.error("Error fetching requests:", error);
       toast.error("Failed to fetch recovery requests");
-    } finally {
-      setIsLoading(false);
     }
+  };
+
+  const fetchDeletionRequests = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-recovery", {
+        body: { action: "get_deletion_requests" },
+      });
+
+      if (error) throw error;
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+      setDeletionRequests(data.requests || []);
+    } catch (error) {
+      console.error("Error fetching deletion requests:", error);
+      toast.error("Failed to fetch deletion requests");
+    }
+  };
+
+  const fetchAllRequests = async () => {
+    setIsLoading(true);
+    await Promise.all([fetchRecoveryRequests(), fetchDeletionRequests()]);
+    setIsLoading(false);
   };
 
   const handleCompleteRecovery = async (userId: string, userName: string) => {
@@ -64,7 +99,6 @@ const AdminPanel = () => {
       });
 
       if (error) throw error;
-
       if (data.error) {
         toast.error(data.error);
         return;
@@ -75,6 +109,46 @@ const AdminPanel = () => {
     } catch (error) {
       console.error("Error completing recovery:", error);
       toast.error("Failed to complete recovery");
+    }
+  };
+
+  const handleConfirmDeletion = async (entryId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-recovery", {
+        body: { action: "confirm_deletion", entryId },
+      });
+
+      if (error) throw error;
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      toast.success("Entry deleted successfully");
+      fetchDeletionRequests();
+    } catch (error) {
+      console.error("Error confirming deletion:", error);
+      toast.error("Failed to delete entry");
+    }
+  };
+
+  const handleRejectDeletion = async (entryId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-recovery", {
+        body: { action: "reject_deletion", entryId },
+      });
+
+      if (error) throw error;
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      toast.success("Deletion request rejected");
+      fetchDeletionRequests();
+    } catch (error) {
+      console.error("Error rejecting deletion:", error);
+      toast.error("Failed to reject deletion request");
     }
   };
 
@@ -91,7 +165,7 @@ const AdminPanel = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchRecoveryRequests();
+      fetchAllRequests();
     }
   }, [isAuthenticated]);
 
@@ -143,13 +217,11 @@ const AdminPanel = () => {
       <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Recovery Requests</h2>
-            <p className="text-muted-foreground">
-              Users who have requested their login codes
-            </p>
+            <h2 className="text-2xl font-bold">Management</h2>
+            <p className="text-muted-foreground">Handle user requests and entries</p>
           </div>
           <Button
-            onClick={fetchRecoveryRequests}
+            onClick={fetchAllRequests}
             disabled={isLoading}
             variant="outline"
             className="gap-2"
@@ -159,100 +231,182 @@ const AdminPanel = () => {
           </Button>
         </div>
 
-        {requests.length === 0 ? (
-          <Card className="p-12 text-center">
-            <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-              <CheckCircle className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">No Pending Requests</h3>
-            <p className="text-muted-foreground">
-              All recovery requests have been handled.
-            </p>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {requests.map((request) => (
-              <Card key={request.id} className="p-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-3 flex-1">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-amber-500" />
-                      <span className="font-semibold text-lg">{request.name}</span>
-                    </div>
+        <Tabs defaultValue="recovery" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="recovery" className="gap-2">
+              <User className="h-4 w-4" />
+              Recovery ({recoveryRequests.length})
+            </TabsTrigger>
+            <TabsTrigger value="deletion" className="gap-2">
+              <Trash2 className="h-4 w-4" />
+              Deletion ({deletionRequests.length})
+            </TabsTrigger>
+          </TabsList>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Hash className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Staff ID:</span>
-                        <span className="font-mono font-medium">{request.staff_id}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Phone:</span>
-                        <button
-                          onClick={() => copyToClipboard(request.phone_number, `phone-${request.id}`)}
-                          className="font-mono font-medium hover:text-primary flex items-center gap-1"
-                        >
-                          {request.phone_number}
-                          {copiedId === `phone-${request.id}` ? (
-                            <CheckCircle className="h-3 w-3 text-green-500" />
-                          ) : (
-                            <Copy className="h-3 w-3" />
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Requested:</span>
-                        <span>
-                          {format(new Date(request.recovery_requested_at), "MMM d, h:mm a")}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 inline-block">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground">User's Code</p>
-                          <p className="text-2xl font-mono font-bold tracking-widest text-primary">
-                            {request.code}
-                          </p>
+          <TabsContent value="recovery" className="space-y-4">
+            {recoveryRequests.length === 0 ? (
+              <Card className="p-12 text-center">
+                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Pending Requests</h3>
+                <p className="text-muted-foreground">All recovery requests have been handled.</p>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {recoveryRequests.map((request) => (
+                  <Card key={request.id} className="p-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-3 flex-1">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-5 w-5 text-amber-500" />
+                          <span className="font-semibold text-lg">{request.name}</span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyToClipboard(request.code, `code-${request.id}`)}
-                          className="h-10 w-10 p-0"
-                        >
-                          {copiedId === `code-${request.id}` ? (
-                            <CheckCircle className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <Copy className="h-5 w-5" />
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Hash className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Staff ID:</span>
+                            <span className="font-mono font-medium">{request.staff_id}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Phone:</span>
+                            <button
+                              onClick={() => copyToClipboard(request.phone_number, `phone-${request.id}`)}
+                              className="font-mono font-medium hover:text-primary flex items-center gap-1"
+                            >
+                              {request.phone_number}
+                              {copiedId === `phone-${request.id}` ? (
+                                <CheckCircle className="h-3 w-3 text-green-500" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Requested:</span>
+                            <span>{format(new Date(request.recovery_requested_at), "MMM d, h:mm a")}</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 inline-block">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <p className="text-xs text-muted-foreground">User's Code</p>
+                              <p className="text-2xl font-mono font-bold tracking-widest text-primary">
+                                {request.code}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyToClipboard(request.code, `code-${request.id}`)}
+                              className="h-10 w-10 p-0"
+                            >
+                              {copiedId === `code-${request.id}` ? (
+                                <CheckCircle className="h-5 w-5 text-green-500" />
+                              ) : (
+                                <Copy className="h-5 w-5" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <Button onClick={() => handleCompleteRecovery(request.id, request.name)} className="gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          Mark as Sent
+                        </Button>
+                        <p className="text-xs text-muted-foreground text-center">
+                          Click after sending the code via SMS
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="deletion" className="space-y-4">
+            {deletionRequests.length === 0 ? (
+              <Card className="p-12 text-center">
+                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                  <Package className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Deletion Requests</h3>
+                <p className="text-muted-foreground">All entries are in good standing.</p>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {deletionRequests.map((entry) => (
+                  <Card key={entry.id} className="p-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-3 flex-1">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            entry.entry_type === "receiving" ? "bg-blue-500" : "bg-emerald-500"
+                          }`} />
+                          <span className="text-sm font-medium text-muted-foreground capitalize">
+                            {entry.entry_type}
+                          </span>
+                          <span className="px-2 py-0.5 bg-destructive/10 text-destructive text-xs rounded font-medium">
+                            Deletion Requested
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="font-mono font-bold text-xl text-foreground">
+                            {entry.container_number}
+                          </p>
+                          {entry.second_container_number && (
+                            <p className="font-mono text-sm text-muted-foreground">
+                              + {entry.second_container_number}
+                            </p>
                           )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                          <span>Size: <span className="font-medium text-foreground">{entry.container_size}</span></span>
+                          <span>•</span>
+                          <span>By: <span className="font-medium text-foreground">{entry.user_name}</span></span>
+                          <span>•</span>
+                          <span>Created: {format(new Date(entry.created_at), "MMM d, yyyy")}</span>
+                          <span>•</span>
+                          <span>Requested: {format(new Date(entry.deletion_requested_at), "MMM d, h:mm a")}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleConfirmDeletion(entry.id)}
+                          className="gap-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleRejectDeletion(entry.id)}
+                          className="gap-2"
+                        >
+                          <X className="h-4 w-4" />
+                          Reject
                         </Button>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      onClick={() => handleCompleteRecovery(request.id, request.name)}
-                      className="gap-2"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      Mark as Sent
-                    </Button>
-                    <p className="text-xs text-muted-foreground text-center">
-                      Click after sending the code via SMS
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

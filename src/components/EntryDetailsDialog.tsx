@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { User, Package, Calendar, Trash2, Truck, Container, X, ChevronRight } from "lucide-react";
+import { User, Package, Calendar, Trash2, Truck, Container, X, ChevronRight, Clock } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,44 +14,55 @@ interface EntryDetailsDialogProps {
     second_container_number?: string | null;
     container_size: string;
     user_name: string;
+    user_id?: string | null;
     created_at: string;
     container_image?: string | null;
     license_plate_number?: string | null;
     entry_type: string;
+    deletion_requested?: boolean;
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  currentUserId?: string;
 }
 
-export const EntryDetailsDialog = ({ entry, open, onOpenChange }: EntryDetailsDialogProps) => {
+export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }: EntryDetailsDialogProps) => {
   const [imageExpanded, setImageExpanded] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
   const queryClient = useQueryClient();
 
-  const handleDelete = async () => {
-    if (!entry) return;
+  const isOwner = currentUserId && entry?.user_id === currentUserId;
+  const alreadyRequested = entry?.deletion_requested;
+
+  const handleRequestDeletion = async () => {
+    if (!entry || !currentUserId) return;
     
-    if (!confirm("Are you sure you want to delete this entry? This action cannot be undone.")) {
+    if (!confirm("Request deletion of this entry? An admin will review and confirm.")) {
       return;
     }
 
-    setIsDeleting(true);
+    setIsRequesting(true);
     try {
       const { error } = await supabase
         .from("container_entries")
-        .delete()
-        .eq("id", entry.id);
+        .update({
+          deletion_requested: true,
+          deletion_requested_at: new Date().toISOString(),
+          deletion_requested_by: currentUserId,
+        })
+        .eq("id", entry.id)
+        .eq("user_id", currentUserId);
 
       if (error) throw error;
 
-      toast.success("Entry deleted successfully");
+      toast.success("Deletion request submitted. An admin will review it.");
       queryClient.invalidateQueries({ queryKey: ["container-entries"] });
       onOpenChange(false);
     } catch (error) {
-      console.error("Error deleting entry:", error);
-      toast.error("Failed to delete entry");
+      console.error("Error requesting deletion:", error);
+      toast.error("Failed to request deletion");
     } finally {
-      setIsDeleting(false);
+      setIsRequesting(false);
     }
   };
 
@@ -146,18 +157,27 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange }: EntryDetailsDi
             )}
           </div>
 
-          {/* Actions */}
-          <div className="px-5 py-4 border-t border-border/50">
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="w-full h-11 rounded-xl font-medium"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              {isDeleting ? "Deleting..." : "Delete Entry"}
-            </Button>
-          </div>
+          {/* Actions - Only show for owner */}
+          {isOwner && (
+            <div className="px-5 py-4 border-t border-border/50">
+              {alreadyRequested ? (
+                <div className="flex items-center justify-center gap-2 py-3 text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-xl">
+                  <Clock className="h-4 w-4" />
+                  <span className="text-sm font-medium">Deletion pending admin approval</span>
+                </div>
+              ) : (
+                <Button
+                  variant="destructive"
+                  onClick={handleRequestDeletion}
+                  disabled={isRequesting}
+                  className="w-full h-11 rounded-xl font-medium"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {isRequesting ? "Requesting..." : "Request Deletion"}
+                </Button>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

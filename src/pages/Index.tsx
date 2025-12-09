@@ -205,7 +205,7 @@ const Index = () => {
               Manage and track all container movements
             </div>
           </div>
-          <EntriesGrid />
+          <EntriesGrid currentUserId={user?.id} />
         </div>
       </main>
     </div>
