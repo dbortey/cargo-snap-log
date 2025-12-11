@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { EntryForm } from "@/components/EntryForm";
 import { EntriesGrid } from "@/components/EntriesGrid";
 import { NameEntry } from "@/components/NameEntry";
+import { SyncStatus } from "@/components/SyncStatus";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -10,13 +11,22 @@ import { PlusCircle, LogOut, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import containerLogo from "@/assets/container-logo.png";
 import { useSession } from "@/hooks/useSession";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { addPendingEntry } from "@/lib/offlineStorage";
+import { setupAutoSync } from "@/lib/syncManager";
 
 const Index = () => {
   const { user, isLoading: sessionLoading, createSession, logout, isAuthenticated } = useSession();
+  const { isOnline } = useNetworkStatus();
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [isLocationValid, setIsLocationValid] = useState<boolean | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  // Setup auto-sync on mount
+  useEffect(() => {
+    setupAutoSync();
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -74,6 +84,33 @@ const Index = () => {
     entryType: string;
   }) => {
     if (!user) return;
+
+    // If offline, save to IndexedDB
+    if (!isOnline) {
+      try {
+        await addPendingEntry({
+          id: crypto.randomUUID(),
+          containerNumber: data.containerNumber,
+          secondContainerNumber: data.secondContainerNumber,
+          size: data.size,
+          containerImage: data.containerImage,
+          licensePlateNumber: data.licensePlateNumber,
+          entryType: data.entryType,
+          userId: user.id,
+          userName: user.name,
+          createdAt: new Date().toISOString(),
+        });
+
+        toast.success("Entry saved offline. Will sync when connected.");
+        queryClient.invalidateQueries({ queryKey: ["container-entries"] });
+        setShowEntryForm(false);
+        return;
+      } catch (error) {
+        console.error("Error saving offline entry:", error);
+        toast.error("Failed to save entry offline.");
+        return;
+      }
+    }
 
     try {
       const { error } = await supabase.from("container_entries").insert({
@@ -162,6 +199,7 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <SyncStatus />
             <div className="text-right hidden sm:block">
               <p className="text-xs text-primary-foreground/70">Logged in as</p>
               <p className="text-sm font-semibold">{user?.name}</p>

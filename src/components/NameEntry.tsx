@@ -9,6 +9,7 @@ import { LogIn, UserPlus, KeyRound, Phone, User, Hash, Sparkles, Shield } from "
 import containerLogo from "@/assets/container-logo.png";
 import { loginSchema, signupSchema, recoverySchema } from "@/lib/validation";
 import { z } from "zod";
+import { InstallAppButton } from "./InstallAppButton";
 
 interface NameEntryProps {
   onConnect: (userId: string, userName: string, staffId: string) => void;
@@ -368,6 +369,11 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
                 <KeyRound className="mr-2 h-4 w-4" />
                 Forgot Code?
               </Button>
+            </div>
+
+            {/* Install App Button */}
+            <div className="pt-4 border-t border-border/50">
+              <InstallAppButton />
             </div>
           </div>
         )}
