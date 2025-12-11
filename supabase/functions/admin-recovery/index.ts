@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, userId } = await req.json();
+    const { action, userId, entryId } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -88,8 +88,6 @@ serve(async (req) => {
     }
 
     if (action === "confirm_deletion") {
-      const { entryId } = await req.json().catch(() => ({}));
-      
       if (!entryId || typeof entryId !== "string") {
         return new Response(
           JSON.stringify({ error: "Invalid entry ID" }),
@@ -118,8 +116,6 @@ serve(async (req) => {
     }
 
     if (action === "reject_deletion") {
-      const { entryId } = await req.json().catch(() => ({}));
-      
       if (!entryId || typeof entryId !== "string") {
         return new Response(
           JSON.stringify({ error: "Invalid entry ID" }),
