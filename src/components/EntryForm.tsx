@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Camera, Plus, X, Check, Loader2, ArrowLeft, Package, Car } from "lucide-react";
+import { Camera, Plus, X, Check, Loader2, ArrowLeft, Package, Car, WifiOff } from "lucide-react";
 import { CameraCapture } from "./CameraCapture";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { compressImage } from "@/lib/imageCompression";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 interface EntryFormProps {
   onSubmit: (data: {
@@ -22,6 +23,7 @@ interface EntryFormProps {
 type CaptureTarget = "container" | "license" | "secondContainer" | null;
 
 export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
+  const { isOnline } = useNetworkStatus();
   const [containerNumber, setContainerNumber] = useState("");
   const [secondContainerNumber, setSecondContainerNumber] = useState("");
   const [showSecondContainer, setShowSecondContainer] = useState(false);
@@ -43,17 +45,22 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
       const compressedImage = await compressImage(imageData);
       setContainerImage(compressedImage);
 
-      const { data, error } = await supabase.functions.invoke("extract-container-number", {
-        body: { imageData },
-      });
+      // Only attempt OCR if online
+      if (isOnline) {
+        const { data, error } = await supabase.functions.invoke("extract-container-number", {
+          body: { imageData },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      if (data.containerNumber === "UNABLE_TO_READ") {
-        toast.warning("Unable to read container number. Please enter it manually.");
+        if (data.containerNumber === "UNABLE_TO_READ") {
+          toast.warning("Unable to read container number. Please enter it manually.");
+        } else {
+          setContainerNumber(data.containerNumber);
+          toast.success("Container number extracted!");
+        }
       } else {
-        setContainerNumber(data.containerNumber);
-        toast.success("Container number extracted!");
+        toast.info("Offline: Image saved. Enter container number manually.");
       }
     } catch (error) {
       console.error("Error processing container:", error);
@@ -68,17 +75,21 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
     setIsProcessingSecondContainer(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("extract-container-number", {
-        body: { imageData },
-      });
+      if (isOnline) {
+        const { data, error } = await supabase.functions.invoke("extract-container-number", {
+          body: { imageData },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      if (data.containerNumber === "UNABLE_TO_READ") {
-        toast.warning("Unable to read second container number. Please enter it manually.");
+        if (data.containerNumber === "UNABLE_TO_READ") {
+          toast.warning("Unable to read second container number. Please enter it manually.");
+        } else {
+          setSecondContainerNumber(data.containerNumber);
+          toast.success("Second container number extracted!");
+        }
       } else {
-        setSecondContainerNumber(data.containerNumber);
-        toast.success("Second container number extracted!");
+        toast.info("Offline: Enter container number manually.");
       }
     } catch (error) {
       console.error("Error processing second container:", error);
@@ -93,17 +104,21 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
     setIsProcessingPlate(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("extract-license-plate", {
-        body: { imageData },
-      });
+      if (isOnline) {
+        const { data, error } = await supabase.functions.invoke("extract-license-plate", {
+          body: { imageData },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      if (data.licensePlateNumber === "UNABLE_TO_READ") {
-        toast.warning("Unable to read license plate. Please enter it manually.");
+        if (data.licensePlateNumber === "UNABLE_TO_READ") {
+          toast.warning("Unable to read license plate. Please enter it manually.");
+        } else {
+          setLicensePlateNumber(data.licensePlateNumber);
+          toast.success("License plate extracted!");
+        }
       } else {
-        setLicensePlateNumber(data.licensePlateNumber);
-        toast.success("License plate extracted!");
+        toast.info("Offline: Enter license plate manually.");
       }
     } catch (error) {
       console.error("Error processing license plate:", error);
@@ -167,6 +182,13 @@ export const EntryForm = ({ onSubmit, onCancel }: EntryFormProps) => {
       </div>
 
       <div className="px-4 py-6 space-y-6 max-w-lg mx-auto">
+        {/* Offline Banner */}
+        {!isOnline && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-600">
+            <WifiOff className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm">Offline mode: OCR disabled, manual entry only</span>
+          </div>
+        )}
         {/* Entry Type Toggle */}
         <div className="space-y-2">
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Entry Type</label>
