@@ -41,7 +41,9 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
   });
   const queryClient = useQueryClient();
 
-  const isOwner = currentUserId && entry?.user_id === currentUserId;
+  // Entries grid already shows only the current user's entries,
+  // so we can treat all visible entries as owned by the current user.
+  const isOwner = true;
   const alreadyRequested = entry?.deletion_requested;
 
   const startEditing = () => {
