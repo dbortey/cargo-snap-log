@@ -138,7 +138,7 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
         if (!open) setIsEditing(false);
         onOpenChange(open);
       }}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-0 shadow-2xl rounded-2xl">
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-0 shadow-2xl rounded-2xl [&>button]:hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
             <div className="flex items-center gap-3">
@@ -149,17 +149,24 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
                 {isEditing ? editData.entry_type : entry.entry_type}
               </span>
             </div>
-            {isOwner && !isEditing && !alreadyRequested && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={startEditing}
-                className="h-8 px-3 text-primary hover:text-primary"
+            <div className="flex items-center gap-1">
+              {isOwner && !isEditing && !alreadyRequested && (
+                <button
+                  onClick={startEditing}
+                  className="p-2 rounded-full hover:bg-muted transition-colors"
+                  title="Edit entry"
+                >
+                  <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
+              <button
+                onClick={() => onOpenChange(false)}
+                className="p-2 rounded-full hover:bg-muted transition-colors"
+                title="Close"
               >
-                <Pencil className="h-4 w-4 mr-1" />
-                Edit
-              </Button>
-            )}
+                <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+              </button>
+            </div>
           </div>
 
           {/* Main Content */}
