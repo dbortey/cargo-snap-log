@@ -1,7 +1,8 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
-import { User, Package, Calendar, Trash2, Truck, Container, X, ChevronRight, Clock } from "lucide-react";
+import { Trash2, X, ChevronRight, Clock, Pencil, Save } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -29,10 +30,71 @@ interface EntryDetailsDialogProps {
 export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }: EntryDetailsDialogProps) => {
   const [imageExpanded, setImageExpanded] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editData, setEditData] = useState({
+    container_number: "",
+    second_container_number: "",
+    license_plate_number: "",
+    container_size: "",
+    entry_type: "",
+  });
   const queryClient = useQueryClient();
 
   const isOwner = currentUserId && entry?.user_id === currentUserId;
   const alreadyRequested = entry?.deletion_requested;
+
+  const startEditing = () => {
+    if (!entry) return;
+    setEditData({
+      container_number: entry.container_number,
+      second_container_number: entry.second_container_number || "",
+      license_plate_number: entry.license_plate_number || "",
+      container_size: entry.container_size,
+      entry_type: entry.entry_type,
+    });
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!entry || !currentUserId) return;
+
+    if (!editData.container_number.trim()) {
+      toast.error("Container number is required");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("container_entries")
+        .update({
+          container_number: editData.container_number.toUpperCase(),
+          second_container_number: editData.second_container_number.toUpperCase() || null,
+          license_plate_number: editData.license_plate_number.toUpperCase() || null,
+          container_size: editData.container_size,
+          entry_type: editData.entry_type,
+        })
+        .eq("id", entry.id)
+        .eq("user_id", currentUserId);
+
+      if (error) throw error;
+
+      toast.success("Entry updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["container-entries"] });
+      setIsEditing(false);
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error updating entry:", error);
+      toast.error("Failed to update entry");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleRequestDeletion = async () => {
     if (!entry || !currentUserId) return;
@@ -72,93 +134,215 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={(open) => {
+        if (!open) setIsEditing(false);
+        onOpenChange(open);
+      }}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-0 shadow-2xl rounded-2xl">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
             <div className="flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full ${
-                entry.entry_type === "receiving" ? "bg-blue-500" : "bg-emerald-500"
+                (isEditing ? editData.entry_type : entry.entry_type) === "receiving" ? "bg-blue-500" : "bg-emerald-500"
               }`} />
               <span className="text-sm font-medium text-muted-foreground capitalize">
-                {entry.entry_type}
+                {isEditing ? editData.entry_type : entry.entry_type}
               </span>
             </div>
+            {isOwner && !isEditing && !alreadyRequested && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={startEditing}
+                className="h-8 px-3 text-primary hover:text-primary"
+              >
+                <Pencil className="h-4 w-4 mr-1" />
+                Edit
+              </Button>
+            )}
           </div>
 
           {/* Main Content */}
           <div className="px-5 py-4 space-y-4">
-            {/* Container Numbers - Equal Treatment */}
-            <div className="space-y-3">
-              <div className="flex items-start justify-between">
+            {isEditing ? (
+              // Edit Mode
+              <div className="space-y-4">
+                {/* Entry Type Toggle */}
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Container 1</p>
-                  <p className="font-mono font-bold text-xl tracking-tight text-foreground">
-                    {entry.container_number}
-                  </p>
+                  <p className="text-xs text-muted-foreground mb-2">Entry Type</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditData(d => ({ ...d, entry_type: "receiving" }))}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        editData.entry_type === "receiving"
+                          ? "bg-blue-500 text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      📦 Receiving
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditData(d => ({ ...d, entry_type: "clearing" }))}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        editData.entry_type === "clearing"
+                          ? "bg-emerald-500 text-white"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      🚚 Clearing
+                    </button>
+                  </div>
                 </div>
-                <span className="px-3 py-1.5 bg-muted rounded-lg text-sm font-semibold text-foreground">
-                  {entry.container_size}
-                </span>
-              </div>
-              
-              {entry.second_container_number && (
+
+                {/* Container Size */}
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Container 2</p>
-                  <p className="font-mono font-bold text-xl tracking-tight text-foreground">
-                    {entry.second_container_number}
-                  </p>
+                  <p className="text-xs text-muted-foreground mb-2">Container Size</p>
+                  <div className="flex gap-2">
+                    {["20ft", "40ft", "45ft"].map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => setEditData(d => ({ ...d, container_size: size }))}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          editData.container_size === size
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
 
-            {/* Details Grid */}
-            <div className="space-y-2.5">
-              <DetailRow 
-                label="Recorded by" 
-                value={entry.user_name}
-              />
-              <DetailRow 
-                label="Date" 
-                value={format(entryDate, "d MMM yyyy")}
-              />
-              <DetailRow 
-                label="Time" 
-                value={format(entryDate, "h:mm a")}
-              />
-              {entry.license_plate_number && (
-                <DetailRow 
-                  label="License Plate" 
-                  value={entry.license_plate_number}
-                  mono
-                />
-              )}
-            </div>
-
-            {/* Image Thumbnail */}
-            {entry.container_image && (
-              <button
-                onClick={() => setImageExpanded(true)}
-                className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors group"
-              >
-                <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                  <img
-                    src={entry.container_image}
-                    alt="Container"
-                    className="w-full h-full object-cover"
+                {/* Container Numbers */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Container 1 *</p>
+                  <Input
+                    value={editData.container_number}
+                    onChange={(e) => setEditData(d => ({ ...d, container_number: e.target.value.toUpperCase() }))}
+                    className="font-mono text-lg h-12"
+                    placeholder="e.g. MSKU1234567"
                   />
                 </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-foreground">Container Photo</p>
-                  <p className="text-xs text-muted-foreground">Tap to view full image</p>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Container 2 (optional)</p>
+                  <Input
+                    value={editData.second_container_number}
+                    onChange={(e) => setEditData(d => ({ ...d, second_container_number: e.target.value.toUpperCase() }))}
+                    className="font-mono text-lg h-12"
+                    placeholder="e.g. TCNU7654321"
+                  />
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </button>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">License Plate (optional)</p>
+                  <Input
+                    value={editData.license_plate_number}
+                    onChange={(e) => setEditData(d => ({ ...d, license_plate_number: e.target.value.toUpperCase() }))}
+                    className="font-mono h-11"
+                    placeholder="e.g. GR-1234-23"
+                  />
+                </div>
+
+                {/* Save/Cancel Buttons */}
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={cancelEditing}
+                    className="flex-1 h-11 rounded-xl"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveEdit}
+                    disabled={isSaving}
+                    className="flex-1 h-11 rounded-xl"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              // View Mode
+              <>
+                {/* Container Numbers - Equal Treatment */}
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Container 1</p>
+                      <p className="font-mono font-bold text-xl tracking-tight text-foreground">
+                        {entry.container_number}
+                      </p>
+                    </div>
+                    <span className="px-3 py-1.5 bg-muted rounded-lg text-sm font-semibold text-foreground">
+                      {entry.container_size}
+                    </span>
+                  </div>
+                  
+                  {entry.second_container_number && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Container 2</p>
+                      <p className="font-mono font-bold text-xl tracking-tight text-foreground">
+                        {entry.second_container_number}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Details Grid */}
+                <div className="space-y-2.5">
+                  <DetailRow 
+                    label="Recorded by" 
+                    value={entry.user_name}
+                  />
+                  <DetailRow 
+                    label="Date" 
+                    value={format(entryDate, "d MMM yyyy")}
+                  />
+                  <DetailRow 
+                    label="Time" 
+                    value={format(entryDate, "h:mm a")}
+                  />
+                  {entry.license_plate_number && (
+                    <DetailRow 
+                      label="License Plate" 
+                      value={entry.license_plate_number}
+                      mono
+                    />
+                  )}
+                </div>
+
+                {/* Image Thumbnail */}
+                {entry.container_image && (
+                  <button
+                    onClick={() => setImageExpanded(true)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors group"
+                  >
+                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                      <img
+                        src={entry.container_image}
+                        alt="Container"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-medium text-foreground">Container Photo</p>
+                      <p className="text-xs text-muted-foreground">Tap to view full image</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </button>
+                )}
+              </>
             )}
           </div>
           
-          {/* Actions - Show for owner */}
-          {isOwner && (
+          {/* Actions - Show for owner (only in view mode) */}
+          {isOwner && !isEditing && (
             <div className="px-5 py-4 border-t border-border/50">
               {alreadyRequested ? (
                 <div className="flex items-center justify-center gap-2 py-3 text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-xl">

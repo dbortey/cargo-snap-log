@@ -35,16 +35,20 @@ export const EntriesGrid = ({ currentUserId }: EntriesGridProps) => {
   const [filterSize, setFilterSize] = useState<FilterSize>("all");
 
   const { data: entries, isLoading } = useQuery({
-    queryKey: ["container-entries"],
+    queryKey: ["container-entries", currentUserId],
     queryFn: async () => {
+      if (!currentUserId) return [];
+      
       const { data, error } = await supabase
         .from("container_entries")
         .select("*")
+        .eq("user_id", currentUserId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as ContainerEntry[];
     },
+    enabled: !!currentUserId,
   });
 
   // Cycle through type filter
