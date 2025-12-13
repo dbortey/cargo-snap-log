@@ -13,7 +13,7 @@ import containerLogo from "@/assets/container-logo.png";
 import { useSession } from "@/hooks/useSession";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { addPendingEntry } from "@/lib/offlineStorage";
-import { setupAutoSync } from "@/lib/syncManager";
+import { setupAutoSync, setSessionTokenForSync } from "@/lib/syncManager";
 
 const Index = () => {
   const { user, isLoading: sessionLoading, createSession, logout, isAuthenticated } = useSession();
@@ -23,10 +23,15 @@ const Index = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // Setup auto-sync on mount
+  // Setup auto-sync on mount and update session token
   useEffect(() => {
     setupAutoSync();
   }, []);
+
+  // Update sync manager with current session token
+  useEffect(() => {
+    setSessionTokenForSync(user?.sessionToken || null);
+  }, [user?.sessionToken]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -113,15 +118,15 @@ const Index = () => {
     }
 
     try {
-      const { error } = await supabase.from("container_entries").insert({
-        container_number: data.containerNumber,
-        second_container_number: data.secondContainerNumber || null,
-        container_size: data.size,
-        user_name: user.name,
-        user_id: user.id,
-        container_image: data.containerImage,
-        license_plate_number: data.licensePlateNumber || null,
-        entry_type: data.entryType,
+      // Use secure RPC that validates session
+      const { data: entryId, error } = await supabase.rpc("create_container_entry", {
+        p_session_token: user.sessionToken,
+        p_container_number: data.containerNumber,
+        p_container_size: data.size,
+        p_entry_type: data.entryType,
+        p_second_container_number: data.secondContainerNumber || null,
+        p_license_plate_number: data.licensePlateNumber || null,
+        p_container_image: data.containerImage || null,
       });
 
       if (error) throw error;
@@ -235,7 +240,7 @@ const Index = () => {
               Manage and track all container movements
             </div>
           </div>
-          <EntriesGrid currentUserId={user?.id} />
+          <EntriesGrid currentUserId={user?.id} sessionToken={user?.sessionToken} />
         </div>
       </main>
     </div>

@@ -25,9 +25,10 @@ type FilterSize = "all" | "20ft" | "40ft" | "45ft";
 
 interface EntriesGridProps {
   currentUserId?: string;
+  sessionToken?: string;
 }
 
-export const EntriesGrid = ({ currentUserId }: EntriesGridProps) => {
+export const EntriesGrid = ({ currentUserId, sessionToken }: EntriesGridProps) => {
   const [selectedEntry, setSelectedEntry] = useState<ContainerEntry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -35,20 +36,19 @@ export const EntriesGrid = ({ currentUserId }: EntriesGridProps) => {
   const [filterSize, setFilterSize] = useState<FilterSize>("all");
 
   const { data: entries, isLoading } = useQuery({
-    queryKey: ["container-entries", currentUserId],
+    queryKey: ["container-entries", currentUserId, sessionToken],
     queryFn: async () => {
-      if (!currentUserId) return [];
+      if (!sessionToken) return [];
       
-      const { data, error } = await supabase
-        .from("container_entries")
-        .select("*")
-        .eq("user_id", currentUserId)
-        .order("created_at", { ascending: false });
+      // Use secure RPC that validates session
+      const { data, error } = await supabase.rpc("get_user_entries", {
+        p_session_token: sessionToken,
+      });
 
       if (error) throw error;
       return data as ContainerEntry[];
     },
-    enabled: !!currentUserId,
+    enabled: !!sessionToken,
   });
 
   // Cycle through type filter
@@ -221,6 +221,7 @@ export const EntriesGrid = ({ currentUserId }: EntriesGridProps) => {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         currentUserId={currentUserId}
+        sessionToken={sessionToken}
       />
     </>
   );
