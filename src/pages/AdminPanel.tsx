@@ -86,13 +86,19 @@ const AdminPanel = () => {
   const [selectedUser, setSelectedUser] = useState<string>("all");
 
   const fetchRecoveryRequests = async () => {
+    if (!admin?.sessionToken) return;
     try {
       const { data, error } = await supabase.functions.invoke("admin-recovery", {
-        body: { action: "get_requests" },
+        body: { action: "get_requests", sessionToken: admin.sessionToken },
       });
 
       if (error) throw error;
       if (data.error) {
+        if (data.error.includes("Unauthorized")) {
+          toast.error("Session expired. Please log in again.");
+          logout();
+          return;
+        }
         toast.error(data.error);
         return;
       }
@@ -104,13 +110,19 @@ const AdminPanel = () => {
   };
 
   const fetchDeletionRequests = async () => {
+    if (!admin?.sessionToken) return;
     try {
       const { data, error } = await supabase.functions.invoke("admin-recovery", {
-        body: { action: "get_deletion_requests" },
+        body: { action: "get_deletion_requests", sessionToken: admin.sessionToken },
       });
 
       if (error) throw error;
       if (data.error) {
+        if (data.error.includes("Unauthorized")) {
+          toast.error("Session expired. Please log in again.");
+          logout();
+          return;
+        }
         toast.error(data.error);
         return;
       }
@@ -143,13 +155,23 @@ const AdminPanel = () => {
   };
 
   const handleCompleteRecovery = async (userId: string, userName: string) => {
+    if (!admin?.sessionToken) {
+      toast.error("Session expired. Please log in again.");
+      logout();
+      return;
+    }
     try {
       const { data, error } = await supabase.functions.invoke("admin-recovery", {
-        body: { action: "complete_recovery", userId },
+        body: { action: "complete_recovery", userId, sessionToken: admin.sessionToken },
       });
 
       if (error) throw error;
       if (data.error) {
+        if (data.error.includes("Unauthorized")) {
+          toast.error("Session expired. Please log in again.");
+          logout();
+          return;
+        }
         toast.error(data.error);
         return;
       }
@@ -163,13 +185,23 @@ const AdminPanel = () => {
   };
 
   const handleConfirmDeletion = async (entryId: string) => {
+    if (!admin?.sessionToken) {
+      toast.error("Session expired. Please log in again.");
+      logout();
+      return;
+    }
     try {
       const { data, error } = await supabase.functions.invoke("admin-recovery", {
-        body: { action: "confirm_deletion", entryId },
+        body: { action: "confirm_deletion", entryId, sessionToken: admin.sessionToken },
       });
 
       if (error) throw error;
       if (data.error) {
+        if (data.error.includes("Unauthorized")) {
+          toast.error("Session expired. Please log in again.");
+          logout();
+          return;
+        }
         toast.error(data.error);
         return;
       }
@@ -183,13 +215,23 @@ const AdminPanel = () => {
   };
 
   const handleRejectDeletion = async (entryId: string) => {
+    if (!admin?.sessionToken) {
+      toast.error("Session expired. Please log in again.");
+      logout();
+      return;
+    }
     try {
       const { data, error } = await supabase.functions.invoke("admin-recovery", {
-        body: { action: "reject_deletion", entryId },
+        body: { action: "reject_deletion", entryId, sessionToken: admin.sessionToken },
       });
 
       if (error) throw error;
       if (data.error) {
+        if (data.error.includes("Unauthorized")) {
+          toast.error("Session expired. Please log in again.");
+          logout();
+          return;
+        }
         toast.error(data.error);
         return;
       }
