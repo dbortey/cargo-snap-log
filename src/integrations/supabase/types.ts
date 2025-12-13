@@ -347,6 +347,7 @@ export type Database = {
         Returns: {
           user_id: string
           user_name: string
+          user_staff_id: string
         }[]
       }
     }

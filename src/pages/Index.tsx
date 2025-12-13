@@ -65,8 +65,8 @@ const Index = () => {
     );
   };
 
-  const handleConnect = (userId: string, userName: string, staffId: string) => {
-    createSession({ id: userId, name: userName, staffId });
+  const handleConnect = (userId: string, userName: string, staffId: string, sessionToken: string) => {
+    createSession({ id: userId, name: userName, staffId, sessionToken });
   };
 
   const handleLogout = () => {
