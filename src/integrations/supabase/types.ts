@@ -137,24 +137,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "container_entries_deletion_requested_by_fkey"
-            columns: ["deletion_requested_by"]
-            isOneToOne: false
-            referencedRelation: "users_public"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "container_entries_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "container_entries_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_public"
             referencedColumns: ["id"]
           },
         ]
@@ -197,21 +183,7 @@ export type Database = {
       }
     }
     Views: {
-      users_public: {
-        Row: {
-          id: string | null
-          name: string | null
-        }
-        Insert: {
-          id?: string | null
-          name?: string | null
-        }
-        Update: {
-          id?: string | null
-          name?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       check_staff_id_available: {
