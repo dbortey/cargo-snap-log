@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,8 +71,98 @@ export const AdminLogin = ({ onLogin }: AdminLoginProps) => {
     }
   };
 
+  useEffect(() => {
+    const canvas = document.getElementById("animationCanvas") as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let dpr = window.devicePixelRatio || 1;
+
+    function resizeCanvas() {
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    const particles: { x: number; y: number; radius: number; color: string; vx: number; vy: number }[] = [];
+    const colors = [
+      "rgba(255,126,179,0.28)",
+      "rgba(255,117,140,0.22)",
+      "rgba(255,106,106,0.18)",
+      "rgba(255,140,66,0.18)",
+      "rgba(255,201,60,0.14)",
+    ];
+
+    function createParticles(count = 120) {
+      particles.length = 0;
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: Math.random() * window.innerWidth,
+          y: Math.random() * window.innerHeight,
+          radius: Math.random() * 3 + 1,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          vx: (Math.random() - 0.5) * 0.6,
+          vy: (Math.random() - 0.5) * 0.6,
+        });
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach((p) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+      });
+    }
+
+    function update() {
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < -50) p.x = window.innerWidth + 50;
+        if (p.x > window.innerWidth + 50) p.x = -50;
+        if (p.y < -50) p.y = window.innerHeight + 50;
+        if (p.y > window.innerHeight + 50) p.y = -50;
+      }
+    }
+
+    let raf = 0;
+    function loop() {
+      update();
+      draw();
+      raf = requestAnimationFrame(loop);
+    }
+
+    resizeCanvas();
+    createParticles(120);
+    loop();
+
+    window.addEventListener("resize", resizeCanvas);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resizeCanvas);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+      {/* Animation Background */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <canvas id="animationCanvas" className="w-full h-full block"></canvas>
+      </div>
+      {/* Rainbow Animation */}
+      <div className="rainbow-container absolute inset-0 z-0 pointer-events-none">
+        {[...Array(25)].map((_, i) => (
+          <div key={i} className="rainbow"></div>
+        ))}
+      </div>
       {/* Back button */}
       <button
         onClick={() => navigate("/")}
@@ -83,7 +173,7 @@ export const AdminLogin = ({ onLogin }: AdminLoginProps) => {
         <span className="text-sm">Back</span>
       </button>
       
-      <Card className="w-full max-w-md p-8 space-y-6 border-border/50 shadow-xl">
+      <Card className="w-full max-w-md p-8 space-y-6 border-border/50 shadow-xl relative z-10">
         <div className="text-center space-y-4">
           <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
             <Shield className="h-8 w-8 text-primary" />
