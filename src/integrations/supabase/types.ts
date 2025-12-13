@@ -145,6 +145,44 @@ export type Database = {
           },
         ]
       }
+      user_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          ip_address: string | null
+          session_token: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          session_token: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          session_token?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           code: string | null
@@ -246,6 +284,16 @@ export type Database = {
           user_name: string
         }[]
       }
+      create_user_session: {
+        Args: {
+          p_expires_at: string
+          p_ip_address?: string
+          p_session_token: string
+          p_user_agent?: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       get_deletion_requests:
         | {
             Args: never
@@ -317,6 +365,10 @@ export type Database = {
         Args: { p_session_token: string }
         Returns: boolean
       }
+      invalidate_user_session: {
+        Args: { p_session_token: string }
+        Returns: boolean
+      }
       reject_deletion_request:
         | { Args: { entry_id: string }; Returns: boolean }
         | {
@@ -348,6 +400,14 @@ export type Database = {
           admin_id: string
           admin_name: string
           admin_role: Database["public"]["Enums"]["admin_role"]
+        }[]
+      }
+      validate_user_session: {
+        Args: { p_session_token: string }
+        Returns: {
+          user_id: string
+          user_name: string
+          user_staff_id: string
         }[]
       }
       verify_admin_login: {
