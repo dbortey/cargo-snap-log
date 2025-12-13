@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_sessions: {
+        Row: {
+          admin_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          ip_address: string | null
+          session_token: string
+          user_agent: string | null
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          session_token: string
+          user_agent?: string | null
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          session_token?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_sessions_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_users: {
         Row: {
           created_at: string
@@ -99,10 +137,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "container_entries_deletion_requested_by_fkey"
+            columns: ["deletion_requested_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "container_entries_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "container_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
             referencedColumns: ["id"]
           },
         ]
@@ -145,11 +197,49 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      users_public: {
+        Row: {
+          id: string | null
+          name: string | null
+        }
+        Insert: {
+          id?: string | null
+          name?: string | null
+        }
+        Update: {
+          id?: string | null
+          name?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      complete_recovery: { Args: { user_id: string }; Returns: boolean }
-      confirm_entry_deletion: { Args: { entry_id: string }; Returns: boolean }
+      check_staff_id_available: {
+        Args: { p_staff_id: string }
+        Returns: boolean
+      }
+      complete_recovery:
+        | {
+            Args: { p_session_token: string; p_user_id: string }
+            Returns: boolean
+          }
+        | { Args: { user_id: string }; Returns: boolean }
+      confirm_entry_deletion:
+        | { Args: { entry_id: string }; Returns: boolean }
+        | {
+            Args: { p_entry_id: string; p_session_token: string }
+            Returns: boolean
+          }
+      create_admin_session: {
+        Args: {
+          p_admin_id: string
+          p_expires_at: string
+          p_ip_address?: string
+          p_session_token: string
+          p_user_agent?: string
+        }
+        Returns: boolean
+      }
       create_admin_user: {
         Args: {
           admin_email: string
@@ -159,31 +249,90 @@ export type Database = {
         }
         Returns: string
       }
-      get_deletion_requests: {
-        Args: never
+      create_user_account: {
+        Args: {
+          p_code: string
+          p_name: string
+          p_phone_number: string
+          p_staff_id: string
+        }
         Returns: {
-          container_number: string
-          container_size: string
-          created_at: string
-          deletion_requested_at: string
-          entry_type: string
-          id: string
-          second_container_number: string
+          user_code: string
+          user_id: string
           user_name: string
         }[]
       }
-      get_recovery_requests: {
-        Args: never
+      get_deletion_requests:
+        | {
+            Args: never
+            Returns: {
+              container_number: string
+              container_size: string
+              created_at: string
+              deletion_requested_at: string
+              entry_type: string
+              id: string
+              second_container_number: string
+              user_name: string
+            }[]
+          }
+        | {
+            Args: { p_session_token: string }
+            Returns: {
+              container_number: string
+              container_size: string
+              created_at: string
+              deletion_requested_at: string
+              entry_type: string
+              id: string
+              second_container_number: string
+              user_name: string
+            }[]
+          }
+      get_recovery_requests:
+        | {
+            Args: never
+            Returns: {
+              code: string
+              id: string
+              name: string
+              phone_number: string
+              recovery_requested_at: string
+              staff_id: string
+            }[]
+          }
+        | {
+            Args: { p_session_token: string }
+            Returns: {
+              code: string
+              id: string
+              name: string
+              phone_number: string
+              recovery_requested_at: string
+              staff_id: string
+            }[]
+          }
+      invalidate_admin_session: {
+        Args: { p_session_token: string }
+        Returns: boolean
+      }
+      reject_deletion_request:
+        | { Args: { entry_id: string }; Returns: boolean }
+        | {
+            Args: { p_entry_id: string; p_session_token: string }
+            Returns: boolean
+          }
+      request_recovery: { Args: { p_staff_id: string }; Returns: boolean }
+      update_user_last_seen: { Args: { p_user_id: string }; Returns: boolean }
+      validate_admin_session: {
+        Args: { session_token: string }
         Returns: {
-          code: string
-          id: string
-          name: string
-          phone_number: string
-          recovery_requested_at: string
-          staff_id: string
+          admin_email: string
+          admin_id: string
+          admin_name: string
+          admin_role: Database["public"]["Enums"]["admin_role"]
         }[]
       }
-      reject_deletion_request: { Args: { entry_id: string }; Returns: boolean }
       verify_admin_login: {
         Args: { admin_email: string; admin_password: string }
         Returns: {
@@ -191,6 +340,13 @@ export type Database = {
           id: string
           name: string
           role: Database["public"]["Enums"]["admin_role"]
+        }[]
+      }
+      verify_user_login: {
+        Args: { p_code: string; p_name: string }
+        Returns: {
+          user_id: string
+          user_name: string
         }[]
       }
     }
