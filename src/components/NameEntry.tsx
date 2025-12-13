@@ -117,28 +117,28 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
 
     setIsLoading(true);
     try {
-      const { data: user, error } = await supabase
-        .from("users")
-        .select("id, name, staff_id")
-        .eq("name", result.data.name)
-        .eq("code", result.data.code)
-        .maybeSingle();
+      // Use secure RPC function for login
+      const { data, error } = await supabase.rpc("verify_user_login", {
+        p_name: result.data.name,
+        p_code: result.data.code,
+      });
 
       if (error) throw error;
 
-      if (!user) {
+      if (!data || data.length === 0) {
         toast.error("Invalid name or code");
         return;
       }
 
-      // Update last_seen_at
-      await supabase
-        .from("users")
-        .update({ last_seen_at: new Date().toISOString() })
-        .eq("id", user.id);
+      const user = data[0];
 
-      onConnect(user.id, user.name, user.staff_id || "");
-      toast.success(`Welcome back, ${user.name}!`);
+      // Update last_seen_at via secure RPC
+      await supabase.rpc("update_user_last_seen", {
+        p_user_id: user.user_id,
+      });
+
+      onConnect(user.user_id, user.user_name, "");
+      toast.success(`Welcome back, ${user.user_name}!`);
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Failed to login. Please try again.");
@@ -173,33 +173,40 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
 
     setIsLoading(true);
     try {
-      // Check if staff ID already exists
-      const { data: existingUser } = await supabase
-        .from("users")
-        .select("id")
-        .eq("staff_id", result.data.staffId)
-        .maybeSingle();
+      // Check if staff ID already exists using secure RPC
+      const { data: isAvailable, error: checkError } = await supabase.rpc("check_staff_id_available", {
+        p_staff_id: result.data.staffId,
+      });
 
-      if (existingUser) {
+      if (checkError) throw checkError;
+
+      if (!isAvailable) {
         setErrors({ staffId: "This staff ID is already registered" });
         return;
       }
 
-      // Create new user
-      const { data: newUser, error: insertError } = await supabase
-        .from("users")
-        .insert({
-          name: result.data.name,
-          staff_id: result.data.staffId,
-          phone_number: result.data.phone,
-          code: generatedCode,
-        })
-        .select("id, name, staff_id")
-        .single();
+      // Create new user using secure RPC
+      const { data: newUser, error: insertError } = await supabase.rpc("create_user_account", {
+        p_name: result.data.name,
+        p_staff_id: result.data.staffId,
+        p_phone_number: result.data.phone,
+        p_code: generatedCode,
+      });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        if (insertError.message.includes("Staff ID already registered")) {
+          setErrors({ staffId: "This staff ID is already registered" });
+          return;
+        }
+        throw insertError;
+      }
 
-      onConnect(newUser.id, newUser.name, newUser.staff_id || "");
+      if (!newUser || newUser.length === 0) {
+        throw new Error("Failed to create account");
+      }
+
+      const user = newUser[0];
+      onConnect(user.user_id, user.user_name, result.data.staffId);
       toast.success(`Welcome, ${result.data.name}! Your code is: ${generatedCode}`);
     } catch (error) {
       console.error("Signup error:", error);
@@ -228,27 +235,17 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
 
     setIsLoading(true);
     try {
-      const { data: user, error } = await supabase
-        .from("users")
-        .select("id, name")
-        .eq("staff_id", result.data.staffId)
-        .maybeSingle();
+      // Use secure RPC function for recovery request
+      const { data: found, error } = await supabase.rpc("request_recovery", {
+        p_staff_id: result.data.staffId,
+      });
 
       if (error) throw error;
 
-      if (!user) {
+      if (!found) {
         setErrors({ staffId: "No account found with this staff ID" });
         return;
       }
-
-      // Mark recovery requested
-      await supabase
-        .from("users")
-        .update({
-          recovery_requested: true,
-          recovery_requested_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
 
       toast.success("Recovery request sent! An admin will contact you shortly.");
       setMode("login");

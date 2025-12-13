@@ -12,26 +12,48 @@ serve(async (req) => {
   }
 
   try {
-    const { action, userId, entryId } = await req.json();
+    const { action, userId, entryId, sessionToken } = await req.json();
+
+    // All actions require a valid session token
+    if (!sessionToken || typeof sessionToken !== "string") {
+      console.warn("Missing session token in admin-recovery request");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: No session token provided" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Get client IP for logging
+    const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
+                     req.headers.get("x-real-ip") || 
+                     "unknown";
+
     if (action === "get_requests") {
-      // Get all recovery requests using security definer function
-      const { data, error } = await supabase.rpc("get_recovery_requests");
+      // Get all recovery requests - function validates session internally
+      const { data, error } = await supabase.rpc("get_recovery_requests", {
+        p_session_token: sessionToken,
+      });
 
       if (error) {
         console.error("Error fetching recovery requests:", error);
+        if (error.message.includes("Unauthorized")) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized: Invalid or expired session" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         return new Response(
           JSON.stringify({ error: "Failed to fetch recovery requests" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      console.log(`Found ${data?.length || 0} recovery requests`);
+      console.log(`Admin fetched ${data?.length || 0} recovery requests from IP: ${clientIP}`);
 
       return new Response(
         JSON.stringify({ requests: data || [] }),
@@ -47,20 +69,27 @@ serve(async (req) => {
         );
       }
 
-      // Mark recovery as complete
+      // Mark recovery as complete - function validates session internally
       const { data, error } = await supabase.rpc("complete_recovery", {
-        user_id: userId,
+        p_session_token: sessionToken,
+        p_user_id: userId,
       });
 
       if (error) {
         console.error("Error completing recovery:", error);
+        if (error.message.includes("Unauthorized")) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized: Invalid or expired session" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         return new Response(
           JSON.stringify({ error: "Failed to complete recovery" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      console.log("Recovery completed for user:", userId);
+      console.log(`Admin completed recovery for user: ${userId} from IP: ${clientIP}`);
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -69,17 +98,25 @@ serve(async (req) => {
     }
 
     if (action === "get_deletion_requests") {
-      const { data, error } = await supabase.rpc("get_deletion_requests");
+      const { data, error } = await supabase.rpc("get_deletion_requests", {
+        p_session_token: sessionToken,
+      });
 
       if (error) {
         console.error("Error fetching deletion requests:", error);
+        if (error.message.includes("Unauthorized")) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized: Invalid or expired session" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         return new Response(
           JSON.stringify({ error: "Failed to fetch deletion requests" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      console.log(`Found ${data?.length || 0} deletion requests`);
+      console.log(`Admin fetched ${data?.length || 0} deletion requests from IP: ${clientIP}`);
 
       return new Response(
         JSON.stringify({ requests: data || [] }),
@@ -96,18 +133,25 @@ serve(async (req) => {
       }
 
       const { data, error } = await supabase.rpc("confirm_entry_deletion", {
-        entry_id: entryId,
+        p_session_token: sessionToken,
+        p_entry_id: entryId,
       });
 
       if (error) {
         console.error("Error confirming deletion:", error);
+        if (error.message.includes("Unauthorized")) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized: Invalid or expired session" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         return new Response(
           JSON.stringify({ error: "Failed to delete entry" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      console.log("Entry deleted:", entryId);
+      console.log(`Admin confirmed deletion for entry: ${entryId} from IP: ${clientIP}`);
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -124,18 +168,25 @@ serve(async (req) => {
       }
 
       const { data, error } = await supabase.rpc("reject_deletion_request", {
-        entry_id: entryId,
+        p_session_token: sessionToken,
+        p_entry_id: entryId,
       });
 
       if (error) {
         console.error("Error rejecting deletion:", error);
+        if (error.message.includes("Unauthorized")) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized: Invalid or expired session" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         return new Response(
           JSON.stringify({ error: "Failed to reject deletion request" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      console.log("Deletion rejected for entry:", entryId);
+      console.log(`Admin rejected deletion for entry: ${entryId} from IP: ${clientIP}`);
 
       return new Response(
         JSON.stringify({ success: true }),
