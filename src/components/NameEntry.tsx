@@ -12,7 +12,7 @@ import { z } from "zod";
 import { InstallAppButton } from "./InstallAppButton";
 
 interface NameEntryProps {
-  onConnect: (userId: string, userName: string, staffId: string) => void;
+  onConnect: (userId: string, userName: string, staffId: string, sessionToken: string) => void;
 }
 
 type AuthMode = "login" | "signup" | "recover";
@@ -117,28 +117,28 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
 
     setIsLoading(true);
     try {
-      // Use secure RPC function for login
-      const { data, error } = await supabase.rpc("verify_user_login", {
-        p_name: result.data.name,
-        p_code: result.data.code,
+      // Use edge function for secure login with server-side session creation
+      const { data, error } = await supabase.functions.invoke("user-auth", {
+        body: {
+          action: "login",
+          name: result.data.name,
+          code: result.data.code,
+        },
       });
 
       if (error) throw error;
 
-      if (!data || data.length === 0) {
-        toast.error("Invalid name or code");
+      if (!data?.success) {
+        if (data?.error === "Too many login attempts. Please wait a minute.") {
+          toast.error(data.error);
+        } else {
+          toast.error("Invalid name or code");
+        }
         return;
       }
 
-      const user = data[0];
-
-      // Update last_seen_at via secure RPC
-      await supabase.rpc("update_user_last_seen", {
-        p_user_id: user.user_id,
-      });
-
-      onConnect(user.user_id, user.user_name, "");
-      toast.success(`Welcome back, ${user.user_name}!`);
+      onConnect(data.user.id, data.user.name, data.user.staffId || "", data.sessionToken);
+      toast.success(`Welcome back, ${data.user.name}!`);
     } catch (error) {
       console.error("Login error:", error);
       toast.error("Failed to login. Please try again.");
@@ -206,7 +206,25 @@ export const NameEntry = ({ onConnect }: NameEntryProps) => {
       }
 
       const user = newUser[0];
-      onConnect(user.user_id, user.user_name, result.data.staffId);
+      
+      // Login after signup to get session token
+      const { data: loginData, error: loginError } = await supabase.functions.invoke("user-auth", {
+        body: {
+          action: "login",
+          name: result.data.name,
+          code: generatedCode,
+        },
+      });
+
+      if (loginError || !loginData?.success) {
+        // User was created but login failed - still allow them in with empty session
+        // They'll need to login again on next visit
+        console.error("Auto-login after signup failed:", loginError);
+        onConnect(user.user_id, user.user_name, result.data.staffId, "");
+      } else {
+        onConnect(loginData.user.id, loginData.user.name, result.data.staffId, loginData.sessionToken);
+      }
+      
       toast.success(`Welcome, ${result.data.name}! Your code is: ${generatedCode}`);
     } catch (error) {
       console.error("Signup error:", error);

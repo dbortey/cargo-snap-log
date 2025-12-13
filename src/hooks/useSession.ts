@@ -5,6 +5,7 @@ interface UserSession {
   id: string;
   name: string;
   staffId: string;
+  sessionToken: string;
 }
 
 const SESSION_KEY = "containerTrackerSession";
@@ -20,6 +21,29 @@ export const useSession = () => {
     localStorage.removeItem(SESSION_EXPIRY_KEY);
     sessionStorage.removeItem("containerTrackerUser");
     setUser(null);
+  }, []);
+
+  const validateSessionOnServer = useCallback(async (sessionToken: string): Promise<UserSession | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke("user-auth", {
+        body: { action: "validate", sessionToken },
+      });
+
+      if (error || !data?.valid) {
+        console.log("Server session validation failed:", error?.message || "Invalid session");
+        return null;
+      }
+
+      return {
+        id: data.user.id,
+        name: data.user.name,
+        staffId: data.user.staffId || "",
+        sessionToken,
+      };
+    } catch (err) {
+      console.error("Error validating session on server:", err);
+      return null;
+    }
   }, []);
 
   const validateSession = useCallback(async () => {
@@ -40,30 +64,20 @@ export const useSession = () => {
 
       const session: UserSession = JSON.parse(sessionData);
 
-      // Verify user still exists in database
-      const { data: dbUser, error } = await supabase
-        .from("users")
-        .select("id, name, staff_id")
-        .eq("id", session.id)
-        .maybeSingle();
+      // Validate session on server
+      const validatedSession = await validateSessionOnServer(session.sessionToken);
 
-      if (error || !dbUser) {
+      if (!validatedSession) {
         clearSession();
         return null;
       }
 
-      // Update last_seen_at
-      await supabase
-        .from("users")
-        .update({ last_seen_at: new Date().toISOString() })
-        .eq("id", session.id);
-
-      return session;
+      return validatedSession;
     } catch {
       clearSession();
       return null;
     }
-  }, [clearSession]);
+  }, [clearSession, validateSessionOnServer]);
 
   const createSession = useCallback((userData: UserSession) => {
     const expiry = Date.now() + SESSION_DURATION_MS;
@@ -73,7 +87,19 @@ export const useSession = () => {
     setUser(userData);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Invalidate session on server
+    const sessionData = localStorage.getItem(SESSION_KEY);
+    if (sessionData) {
+      try {
+        const session: UserSession = JSON.parse(sessionData);
+        await supabase.functions.invoke("user-auth", {
+          body: { action: "logout", sessionToken: session.sessionToken },
+        });
+      } catch (err) {
+        console.error("Error invalidating session on server:", err);
+      }
+    }
     clearSession();
   }, [clearSession]);
 

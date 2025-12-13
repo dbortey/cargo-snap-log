@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.admin-recovery]
 verify_jwt = false
+
+[functions.user-auth]
+verify_jwt = false
