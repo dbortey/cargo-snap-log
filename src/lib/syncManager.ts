@@ -10,11 +10,23 @@ import { toast } from 'sonner';
 
 const MAX_RETRIES = 3;
 
+// Store the current session token for sync operations
+let currentSessionToken: string | null = null;
+
+export function setSessionTokenForSync(token: string | null): void {
+  currentSessionToken = token;
+}
+
 export async function syncPendingEntries(): Promise<{ synced: number; failed: number }> {
   const pendingEntries = await getPendingEntries();
   
   if (pendingEntries.length === 0) {
     return { synced: 0, failed: 0 };
+  }
+
+  if (!currentSessionToken) {
+    console.log('No session token available for sync');
+    return { synced: 0, failed: pendingEntries.length };
   }
 
   let synced = 0;
@@ -29,16 +41,15 @@ export async function syncPendingEntries(): Promise<{ synced: number; failed: nu
     try {
       await updatePendingEntryStatus(entry.id, 'syncing');
 
-      const { error } = await supabase.from('container_entries').insert({
-        container_number: entry.containerNumber,
-        second_container_number: entry.secondContainerNumber || null,
-        container_size: entry.size,
-        user_name: entry.userName,
-        user_id: entry.userId,
-        container_image: entry.containerImage,
-        license_plate_number: entry.licensePlateNumber || null,
-        entry_type: entry.entryType,
-        created_at: entry.createdAt,
+      // Use secure RPC that validates session
+      const { error } = await supabase.rpc('create_container_entry', {
+        p_session_token: currentSessionToken,
+        p_container_number: entry.containerNumber,
+        p_container_size: entry.size,
+        p_entry_type: entry.entryType,
+        p_second_container_number: entry.secondContainerNumber || null,
+        p_license_plate_number: entry.licensePlateNumber || null,
+        p_container_image: entry.containerImage || null,
       });
 
       if (error) throw error;

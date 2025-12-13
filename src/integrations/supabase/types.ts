@@ -249,6 +249,18 @@ export type Database = {
         }
         Returns: string
       }
+      create_container_entry: {
+        Args: {
+          p_container_image?: string
+          p_container_number: string
+          p_container_size: string
+          p_entry_type: string
+          p_license_plate_number?: string
+          p_second_container_number?: string
+          p_session_token: string
+        }
+        Returns: string
+      }
       create_user_account: {
         Args: {
           p_code: string
@@ -312,6 +324,23 @@ export type Database = {
               staff_id: string
             }[]
           }
+      get_user_entries: {
+        Args: { p_session_token: string }
+        Returns: {
+          container_image: string
+          container_number: string
+          container_size: string
+          created_at: string
+          deletion_requested: boolean
+          deletion_requested_at: string
+          entry_type: string
+          id: string
+          license_plate_number: string
+          second_container_number: string
+          user_id: string
+          user_name: string
+        }[]
+      }
       invalidate_admin_session: {
         Args: { p_session_token: string }
         Returns: boolean
@@ -322,7 +351,23 @@ export type Database = {
             Args: { p_entry_id: string; p_session_token: string }
             Returns: boolean
           }
+      request_entry_deletion: {
+        Args: { p_entry_id: string; p_session_token: string }
+        Returns: boolean
+      }
       request_recovery: { Args: { p_staff_id: string }; Returns: boolean }
+      update_container_entry: {
+        Args: {
+          p_container_number?: string
+          p_container_size?: string
+          p_entry_id: string
+          p_entry_type?: string
+          p_license_plate_number?: string
+          p_second_container_number?: string
+          p_session_token: string
+        }
+        Returns: boolean
+      }
       update_user_last_seen: { Args: { p_user_id: string }; Returns: boolean }
       validate_admin_session: {
         Args: { session_token: string }

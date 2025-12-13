@@ -25,9 +25,10 @@ interface EntryDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentUserId?: string;
+  sessionToken?: string;
 }
 
-export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }: EntryDetailsDialogProps) => {
+export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId, sessionToken }: EntryDetailsDialogProps) => {
   const [imageExpanded, setImageExpanded] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -63,7 +64,7 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
   };
 
   const handleSaveEdit = async () => {
-    if (!entry || !currentUserId) return;
+    if (!entry || !sessionToken) return;
 
     if (!editData.container_number.trim()) {
       toast.error("Container number is required");
@@ -72,17 +73,16 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
 
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from("container_entries")
-        .update({
-          container_number: editData.container_number.toUpperCase(),
-          second_container_number: editData.second_container_number.toUpperCase() || null,
-          license_plate_number: editData.license_plate_number.toUpperCase() || null,
-          container_size: editData.container_size,
-          entry_type: editData.entry_type,
-        })
-        .eq("id", entry.id)
-        .eq("user_id", currentUserId);
+      // Use secure RPC that validates session
+      const { error } = await supabase.rpc("update_container_entry", {
+        p_session_token: sessionToken,
+        p_entry_id: entry.id,
+        p_container_number: editData.container_number.toUpperCase(),
+        p_second_container_number: editData.second_container_number.toUpperCase() || null,
+        p_license_plate_number: editData.license_plate_number.toUpperCase() || null,
+        p_container_size: editData.container_size,
+        p_entry_type: editData.entry_type,
+      });
 
       if (error) throw error;
 
@@ -99,7 +99,7 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
   };
 
   const handleRequestDeletion = async () => {
-    if (!entry || !currentUserId) return;
+    if (!entry || !sessionToken) return;
     
     if (!confirm("Request deletion of this entry? An admin will review and confirm.")) {
       return;
@@ -107,15 +107,11 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId }:
 
     setIsRequesting(true);
     try {
-      const { error } = await supabase
-        .from("container_entries")
-        .update({
-          deletion_requested: true,
-          deletion_requested_at: new Date().toISOString(),
-          deletion_requested_by: currentUserId,
-        })
-        .eq("id", entry.id)
-        .eq("user_id", currentUserId);
+      // Use secure RPC that validates session
+      const { error } = await supabase.rpc("request_entry_deletion", {
+        p_session_token: sessionToken,
+        p_entry_id: entry.id,
+      });
 
       if (error) throw error;
 
