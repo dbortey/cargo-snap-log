@@ -314,6 +314,7 @@ export type Database = {
               container_number: string
               container_size: string
               created_at: string
+              deletion_reason: string
               deletion_requested_at: string
               entry_type: string
               id: string
