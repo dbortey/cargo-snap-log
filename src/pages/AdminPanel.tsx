@@ -56,6 +56,7 @@ interface DeletionRequest {
   user_name: string;
   created_at: string;
   deletion_requested_at: string;
+  deletion_reason: string | null;
 }
 
 interface ContainerEntry {
@@ -134,14 +135,23 @@ const AdminPanel = () => {
   };
 
   const fetchEntries = async () => {
+    if (!admin?.sessionToken) return;
     try {
-      const { data, error } = await supabase
-        .from("container_entries")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const { data, error } = await supabase.functions.invoke("admin-recovery", {
+        body: { action: "get_all_entries", sessionToken: admin.sessionToken },
+      });
 
       if (error) throw error;
-      setEntries(data || []);
+      if (data.error) {
+        if (data.error.includes("Unauthorized")) {
+          toast.error("Session expired. Please log in again.");
+          logout();
+          return;
+        }
+        toast.error(data.error);
+        return;
+      }
+      setEntries(data.entries || []);
     } catch (error) {
       console.error("Error fetching entries:", error);
       toast.error("Failed to fetch entries");
@@ -940,6 +950,14 @@ const AdminPanel = () => {
                             <span>{format(new Date(request.deletion_requested_at), "MMM d, h:mm a")}</span>
                           </div>
                         </div>
+
+                        {request.deletion_reason && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="px-2.5 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg font-medium">
+                              Reason: {request.deletion_reason}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex gap-2">

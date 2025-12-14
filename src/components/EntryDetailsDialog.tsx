@@ -2,7 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
-import { Trash2, X, ChevronRight, Clock, Pencil, Save } from "lucide-react";
+import { Trash2, X, ChevronRight, Clock, Pencil, Save, Copy, MapPin } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -28,11 +28,17 @@ interface EntryDetailsDialogProps {
   sessionToken?: string;
 }
 
+const DELETION_REASONS = [
+  { id: "Duplicate", label: "Duplicate", icon: Copy, description: "Entry was recorded twice" },
+  { id: "Wrong Yard", label: "Wrong Yard", icon: MapPin, description: "Recorded at wrong location" },
+];
+
 export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId, sessionToken }: EntryDetailsDialogProps) => {
   const [imageExpanded, setImageExpanded] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDeletionPicker, setShowDeletionPicker] = useState(false);
   const [editData, setEditData] = useState({
     container_number: "",
     second_container_number: "",
@@ -98,25 +104,23 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId, s
     }
   };
 
-  const handleRequestDeletion = async () => {
+  const handleRequestDeletion = async (reason: string) => {
     if (!entry || !sessionToken) return;
-    
-    if (!confirm("Request deletion of this entry? An admin will review and confirm.")) {
-      return;
-    }
 
     setIsRequesting(true);
     try {
-      // Use secure RPC that validates session
+      // Use secure RPC that validates session with deletion reason
       const { error } = await supabase.rpc("request_entry_deletion", {
         p_session_token: sessionToken,
         p_entry_id: entry.id,
+        p_deletion_reason: reason,
       });
 
       if (error) throw error;
 
       toast.success("Deletion request submitted. An admin will review it.");
       queryClient.invalidateQueries({ queryKey: ["container-entries"] });
+      setShowDeletionPicker(false);
       onOpenChange(false);
     } catch (error) {
       console.error("Error requesting deletion:", error);
@@ -133,7 +137,10 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId, s
   return (
     <>
       <Dialog open={open} onOpenChange={(open) => {
-        if (!open) setIsEditing(false);
+        if (!open) {
+          setIsEditing(false);
+          setShowDeletionPicker(false);
+        }
         onOpenChange(open);
       }}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-card border-0 shadow-2xl rounded-2xl [&>button]:hidden">
@@ -148,7 +155,7 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId, s
               </span>
             </div>
             <div className="flex items-center gap-1">
-              {isOwner && !isEditing && !alreadyRequested && (
+              {isOwner && !isEditing && !alreadyRequested && !showDeletionPicker && (
                 <button
                   onClick={startEditing}
                   className="p-2 rounded-full hover:bg-muted transition-colors"
@@ -169,7 +176,43 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId, s
 
           {/* Main Content */}
           <div className="px-5 py-4 space-y-4">
-            {isEditing ? (
+            {showDeletionPicker ? (
+              // Deletion Reason Picker
+              <div className="space-y-4">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-foreground">Why delete this entry?</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Select a reason for deletion</p>
+                </div>
+
+                <div className="space-y-3">
+                  {DELETION_REASONS.map((reason) => (
+                    <button
+                      key={reason.id}
+                      onClick={() => handleRequestDeletion(reason.id)}
+                      disabled={isRequesting}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 hover:border-primary/30 transition-all group disabled:opacity-50"
+                    >
+                      <div className="p-2.5 rounded-xl bg-destructive/10 text-destructive group-hover:bg-destructive group-hover:text-destructive-foreground transition-colors">
+                        <reason.icon className="h-5 w-5" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="font-medium text-foreground">{reason.label}</p>
+                        <p className="text-sm text-muted-foreground">{reason.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeletionPicker(false)}
+                  className="w-full h-11 rounded-xl"
+                  disabled={isRequesting}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : isEditing ? (
               // Edit Mode
               <div className="space-y-4">
                 {/* Entry Type Toggle */}
@@ -347,7 +390,7 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId, s
           </div>
           
           {/* Actions - Show for owner (only in view mode) */}
-          {isOwner && !isEditing && (
+          {isOwner && !isEditing && !showDeletionPicker && (
             <div className="px-5 py-4 border-t border-border/50">
               {alreadyRequested ? (
                 <div className="flex items-center justify-center gap-2 py-3 text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-xl">
@@ -357,12 +400,11 @@ export const EntryDetailsDialog = ({ entry, open, onOpenChange, currentUserId, s
               ) : (
                 <Button
                   variant="ghost"
-                  onClick={handleRequestDeletion}
-                  disabled={isRequesting}
+                  onClick={() => setShowDeletionPicker(true)}
                   className="w-full h-11 rounded-xl font-medium text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  {isRequesting ? "Requesting..." : "Delete Entry"}
+                  Delete Entry
                   <span className="ml-2 text-xs text-muted-foreground">(admin will confirm)</span>
                 </Button>
               )}

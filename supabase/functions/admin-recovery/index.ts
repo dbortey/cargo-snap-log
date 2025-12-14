@@ -194,6 +194,33 @@ serve(async (req) => {
       );
     }
 
+    if (action === "get_all_entries") {
+      const { data, error } = await supabase.rpc("get_all_entries_admin", {
+        p_session_token: sessionToken,
+      });
+
+      if (error) {
+        console.error("Error fetching all entries:", error);
+        if (error.message.includes("Unauthorized")) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized: Invalid or expired session" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch entries" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(`Admin fetched ${data?.length || 0} entries from IP: ${clientIP}`);
+
+      return new Response(
+        JSON.stringify({ entries: data || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: "Invalid action" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
