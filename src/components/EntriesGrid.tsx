@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isToday, isYesterday, parseISO } from "date-fns";
-import { Package, Search, ChevronRight, Image } from "lucide-react";
+import { Package, Search, ChevronRight, Check } from "lucide-react";
 import { EntryDetailsDialog } from "./EntryDetailsDialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 
 interface ContainerEntry {
   id: string;
@@ -18,6 +20,7 @@ interface ContainerEntry {
   license_plate_number?: string | null;
   entry_type: string;
   deletion_requested?: boolean;
+  paperback_checked?: boolean;
 }
 
 type FilterType = "all" | "receiving" | "clearing";
@@ -34,6 +37,7 @@ export const EntriesGrid = ({ currentUserId, sessionToken }: EntriesGridProps) =
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [filterSize, setFilterSize] = useState<FilterSize>("all");
+  const queryClient = useQueryClient();
 
   const { data: entries, isLoading } = useQuery({
     queryKey: ["container-entries", currentUserId, sessionToken],
@@ -106,6 +110,30 @@ export const EntriesGrid = ({ currentUserId, sessionToken }: EntriesGridProps) =
     
     return groups;
   }, [filteredEntries]);
+
+  const handleTogglePaperback = async (entryId: string, checked: boolean) => {
+    if (!sessionToken) return;
+    
+    try {
+      const { error } = await supabase.rpc("toggle_paperback_status", {
+        p_session_token: sessionToken,
+        p_entry_id: entryId,
+        p_checked: checked,
+      });
+
+      if (error) throw error;
+      
+      // Optimistically update cache
+      queryClient.setQueryData(
+        ["container-entries", currentUserId, sessionToken],
+        (old: ContainerEntry[] | undefined) =>
+          old?.map((e) => (e.id === entryId ? { ...e, paperback_checked: checked } : e))
+      );
+    } catch (error) {
+      console.error("Error updating paperback status:", error);
+      toast.error("Failed to update paperback status");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -203,10 +231,12 @@ export const EntriesGrid = ({ currentUserId, sessionToken }: EntriesGridProps) =
                     <EntryCard
                       key={entry.id}
                       entry={entry}
+                      sessionToken={sessionToken}
                       onClick={() => {
                         setSelectedEntry(entry);
                         setDialogOpen(true);
                       }}
+                      onTogglePaperback={handleTogglePaperback}
                     />
                   ))}
                 </div>
@@ -250,26 +280,70 @@ const FilterChip = ({
 
 const EntryCard = ({ 
   entry, 
-  onClick 
+  sessionToken,
+  onClick,
+  onTogglePaperback,
 }: { 
   entry: ContainerEntry; 
+  sessionToken?: string;
   onClick: () => void;
+  onTogglePaperback: (entryId: string, checked: boolean) => void;
 }) => {
   const entryDate = new Date(entry.created_at);
+  const isPaperbackChecked = entry.paperback_checked ?? false;
+  const isMarkedForDelete = entry.deletion_requested ?? false;
+  
+  // Swipe handling
+  const touchStartX = useRef<number | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+    
+    // Swipe left threshold (50px)
+    if (diff > 50 && sessionToken) {
+      onTogglePaperback(entry.id, !isPaperbackChecked);
+    }
+    
+    touchStartX.current = null;
+  };
+
+  const handleCheckboxChange = (checked: boolean) => {
+    onTogglePaperback(entry.id, checked);
+  };
   
   return (
-    <button
-      onClick={onClick}
-      className="w-full bg-card rounded-xl p-4 shadow-sm border border-border/50 hover:border-primary/30 hover:shadow-md transition-all text-left group"
+    <div
+      ref={cardRef}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className="w-full bg-card rounded-xl p-4 shadow-sm border border-border/50 hover:border-primary/30 hover:shadow-md transition-all group"
     >
       <div className="flex items-start gap-3">
-        {/* Status Indicator */}
-        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${
-          entry.entry_type === "receiving" ? "bg-blue-500" : "bg-emerald-500"
-        }`} />
+        {/* Status Indicators - Stacked dots */}
+        <div className="mt-1 flex flex-col items-center gap-1.5 flex-shrink-0">
+          {/* Entry type dot (blue/green) */}
+          <div className={`w-2.5 h-2.5 rounded-full ${
+            entry.entry_type === "receiving" ? "bg-blue-500" : "bg-emerald-500"
+          }`} />
+          {/* Paperback indicator (black dot) - only show if not checked */}
+          {!isPaperbackChecked && (
+            <div className="w-2 h-2 rounded-full bg-foreground/80" />
+          )}
+        </div>
         
         {/* Content */}
-        <div className="flex-1 min-w-0">
+        <button
+          onClick={onClick}
+          className="flex-1 min-w-0 text-left"
+        >
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="min-w-0">
               <p className="font-mono font-bold text-base text-foreground truncate">
@@ -298,10 +372,40 @@ const EntryCard = ({
               </>
             )}
           </div>
-        </div>
+        </button>
 
-        {/* Thumbnail & Arrow */}
-        <div className="flex items-center gap-2">
+        {/* Right side: Checkbox, Badge, Thumbnail */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Paperback checkbox and Delete badge */}
+          <div className="flex flex-col items-end gap-1.5">
+            {/* Paperback checkbox row */}
+            <div 
+              className="flex items-center gap-1.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Checkbox
+                id={`paperback-${entry.id}`}
+                checked={isPaperbackChecked}
+                onCheckedChange={handleCheckboxChange}
+                className="h-4 w-4 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+              />
+              <label 
+                htmlFor={`paperback-${entry.id}`}
+                className="text-[10px] text-muted-foreground cursor-pointer select-none"
+              >
+                Paperback
+              </label>
+            </div>
+            
+            {/* Marked for Delete badge */}
+            {isMarkedForDelete && (
+              <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[9px] font-medium rounded whitespace-nowrap">
+                Marked for delete
+              </span>
+            )}
+          </div>
+
+          {/* Thumbnail */}
           {entry.container_image && (
             <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0">
               <img
@@ -311,9 +415,11 @@ const EntryCard = ({
               />
             </div>
           )}
+          
+          {/* Arrow */}
           <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
         </div>
       </div>
-    </button>
+    </div>
   );
 };
