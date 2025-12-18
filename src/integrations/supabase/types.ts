@@ -88,12 +88,14 @@ export type Database = {
           container_number: string
           container_size: string
           created_at: string
+          deletion_reason: string | null
           deletion_requested: boolean | null
           deletion_requested_at: string | null
           deletion_requested_by: string | null
           entry_type: string
           id: string
           license_plate_number: string | null
+          paperback_checked: boolean | null
           second_container_number: string | null
           user_id: string | null
           user_name: string
@@ -103,12 +105,14 @@ export type Database = {
           container_number: string
           container_size: string
           created_at?: string
+          deletion_reason?: string | null
           deletion_requested?: boolean | null
           deletion_requested_at?: string | null
           deletion_requested_by?: string | null
           entry_type?: string
           id?: string
           license_plate_number?: string | null
+          paperback_checked?: boolean | null
           second_container_number?: string | null
           user_id?: string | null
           user_name?: string
@@ -118,12 +122,14 @@ export type Database = {
           container_number?: string
           container_size?: string
           created_at?: string
+          deletion_reason?: string | null
           deletion_requested?: boolean | null
           deletion_requested_at?: string | null
           deletion_requested_by?: string | null
           entry_type?: string
           id?: string
           license_plate_number?: string | null
+          paperback_checked?: boolean | null
           second_container_number?: string | null
           user_id?: string | null
           user_name?: string
@@ -294,6 +300,24 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_all_entries_admin: {
+        Args: { p_session_token: string }
+        Returns: {
+          container_number: string
+          container_size: string
+          created_at: string
+          deletion_reason: string
+          deletion_requested: boolean
+          deletion_requested_at: string
+          entry_type: string
+          id: string
+          license_plate_number: string
+          paperback_checked: boolean
+          second_container_number: string
+          user_id: string
+          user_name: string
+        }[]
+      }
       get_deletion_requests:
         | {
             Args: never
@@ -357,6 +381,7 @@ export type Database = {
           entry_type: string
           id: string
           license_plate_number: string
+          paperback_checked: boolean
           second_container_number: string
           user_id: string
           user_name: string
@@ -377,10 +402,22 @@ export type Database = {
             Returns: boolean
           }
       request_entry_deletion: {
-        Args: { p_entry_id: string; p_session_token: string }
+        Args: {
+          p_deletion_reason?: string
+          p_entry_id: string
+          p_session_token: string
+        }
         Returns: boolean
       }
       request_recovery: { Args: { p_staff_id: string }; Returns: boolean }
+      toggle_paperback_status: {
+        Args: {
+          p_checked: boolean
+          p_entry_id: string
+          p_session_token: string
+        }
+        Returns: boolean
+      }
       update_container_entry: {
         Args: {
           p_container_number?: string
